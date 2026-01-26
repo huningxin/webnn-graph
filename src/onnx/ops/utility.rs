@@ -427,18 +427,22 @@ impl UtilityHandler {
         let input0 = context.resolve_input(&inputs[0]);
         let input1 = context.resolve_input(&inputs[1]);
 
+        // Normalize negative axis for WebNN unsigned long requirement
+        let mut resolved_axis = axis;
+        if let Some(data_shape) = context.value_shapes.get(&inputs[0]) {
+            if resolved_axis < 0 {
+                resolved_axis += data_shape.len() as i64;
+            }
+        }
+
         let mut options = Map::new();
-        options.insert("axis".to_string(), serde_json::json!(axis));
+        options.insert("axis".to_string(), serde_json::json!(resolved_axis));
 
         // Propagate output shape metadata when available so downstream ops see correct ranks
         if let (Some(data_shape), Some(indices_shape)) = (
             context.value_shapes.get(&inputs[0]),
             context.value_shapes.get(&inputs[1]),
         ) {
-            let mut resolved_axis = axis;
-            if resolved_axis < 0 {
-                resolved_axis += data_shape.len() as i64;
-            }
             if resolved_axis >= 0 && (resolved_axis as usize) < data_shape.len() {
                 let axis_idx = resolved_axis as usize;
                 let mut out_shape = Vec::new();
@@ -612,13 +616,51 @@ impl UtilityHandler {
             options.insert("starts".to_string(), serde_json::json!(starts_norm));
             options.insert("ends".to_string(), serde_json::json!(ends_norm));
 
-            if let Some(axes) = axes_opt {
+            if let Some(ref axes) = axes_opt {
                 options.insert("axes".to_string(), serde_json::json!(axes));
             }
             if inputs.len() >= 5 {
                 let steps_name = inputs[4].as_str();
                 if let Some(steps) = read_ints(steps_name, context) {
                     options.insert("steps".to_string(), serde_json::json!(steps));
+                }
+            }
+            
+            // WebNN requires starts/ends/steps to be full rank (no sparse axes)
+            // Expand to full rank if axes are specified
+            if let Some(axes) = axes_opt.as_ref() {
+                if let Some(input_shape) = context.value_shapes.get(inputs[0].as_str()) {
+                    let rank = input_shape.len();
+                    let mut full_starts = vec![0i64; rank];
+                    let mut full_ends = input_shape.clone();
+                    let mut full_steps = vec![1i64; rank];
+                    
+                    for (i, &axis) in axes.iter().enumerate() {
+                        let normalized_axis = if axis < 0 {
+                            (rank as i64 + axis) as usize
+                        } else {
+                            axis as usize
+                        };
+                        if normalized_axis < rank && i < starts_norm.len() {
+                            full_starts[normalized_axis] = starts_norm[i];
+                        }
+                        if normalized_axis < rank && i < ends_norm.len() {
+                            full_ends[normalized_axis] = ends_norm[i];
+                        }
+                        if let Some(steps) = options.get("steps").and_then(|v| v.as_array()) {
+                            if normalized_axis < rank && i < steps.len() {
+                                if let Some(step) = steps[i].as_i64() {
+                                    full_steps[normalized_axis] = step;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Replace with expanded versions
+                    options.insert("starts".to_string(), serde_json::json!(full_starts));
+                    options.insert("ends".to_string(), serde_json::json!(full_ends));
+                    options.insert("steps".to_string(), serde_json::json!(full_steps));
+                    options.remove("axes"); // No longer needed
                 }
             }
         } else {

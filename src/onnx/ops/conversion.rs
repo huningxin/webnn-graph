@@ -79,10 +79,13 @@ impl ConversionHandler {
         // Map ONNX type to WebNN DataType
         let target_type = crate::onnx::convert::map_onnx_data_type(to_type.unwrap() as i32)?;
 
+        // WebNN cast expects lowercase type name as direct parameter
+        let target_type_str = format!("{:?}", target_type).to_lowercase();
+
         let mut options = Map::new();
         options.insert(
             "to".to_string(),
-            serde_json::json!(format!("{:?}", target_type)),
+            serde_json::json!(target_type_str),
         );
 
         let mut result = ConversionResult::new(vec![Node {
@@ -137,10 +140,13 @@ impl ConversionHandler {
         let shape: Vec<i64> = tensor.dims.as_slice().to_vec();
         let raw_data = tensor.raw_data.as_slice().to_vec();
 
+        // WebNN expects lowercase type names
+        let data_type_str = format!("{:?}", data_type).to_lowercase();
+
         let mut options = Map::new();
         options.insert(
             "dataType".to_string(),
-            serde_json::json!(format!("{:?}", data_type)),
+            serde_json::json!(data_type_str),
         );
         options.insert("shape".to_string(), serde_json::json!(shape));
 

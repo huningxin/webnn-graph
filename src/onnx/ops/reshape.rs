@@ -618,8 +618,20 @@ impl ReshapeHandler {
         let sanitized_inputs: Vec<String> =
             inputs.iter().map(|s| context.resolve_input(s)).collect();
 
+        // Normalize negative axis for WebNN unsigned long requirement
+        let normalized_axis = if axis < 0 {
+            if let Some(shape) = context.value_shapes.get(&inputs[0]) {
+                let rank = shape.len() as i64;
+                rank + axis
+            } else {
+                axis // Shape unknown, pass through
+            }
+        } else {
+            axis
+        };
+
         let mut options = Map::new();
-        options.insert("axis".to_string(), serde_json::json!(axis));
+        options.insert("axis".to_string(), serde_json::json!(normalized_axis));
 
         let mut result = ConversionResult::new(vec![Node {
             id: output_name.clone(),
@@ -683,8 +695,20 @@ impl ReshapeHandler {
             .map(|s| sanitize_identifier(&s.to_string()))
             .collect();
 
+        // Normalize negative axis for WebNN unsigned long requirement
+        let normalized_axis = if axis < 0 {
+            if let Some(shape) = context.value_shapes.get(&inputs[0]) {
+                let rank = shape.len() as i64;
+                rank + axis
+            } else {
+                axis // Shape unknown, pass through
+            }
+        } else {
+            axis
+        };
+
         let mut options = Map::new();
-        options.insert("axis".to_string(), serde_json::json!(axis));
+        options.insert("axis".to_string(), serde_json::json!(normalized_axis));
         if let Some(split_values) = splits {
             options.insert("splits".to_string(), serde_json::json!(split_values));
         }
@@ -730,7 +754,8 @@ impl ReshapeHandler {
             sanitize_identifier(&node.output.as_slice()[0].to_string())
         };
 
-        let input0 = context.resolve_input(&inputs[0]);
+        let input0_raw = inputs[0].to_string();
+        let input0 = context.resolve_input(&input0_raw);
 
         // Extract axes attribute (opset < 13) or use second input (opset >= 13).
         // If missing/empty, default to [0] to ensure the emitted unsqueeze is valid.
@@ -757,20 +782,69 @@ impl ReshapeHandler {
             }
         };
 
-        let mut options = Map::new();
-        options.insert("axes".to_string(), serde_json::json!(axes_values.clone()));
+        // Get input shape to compute output shape
+        // WebNN doesn't have unsqueeze, so we convert it to reshape
+        let input_shape = context
+            .value_shapes
+            .get(&input0_raw)
+            .or_else(|| context.value_shapes.get(&input0))
+            .cloned();
 
-        // WebNN unsqueeze operation only takes the data input
-        // The axes parameter is provided as an attribute, not as an input
+        if input_shape.is_none() {
+            return Err(OnnxError::InvalidShape(format!(
+                "Unsqueeze requires known input shape for '{}'. WebNN does not support unsqueeze natively, \
+                 so it must be converted to reshape which requires static shapes.",
+                input0_raw
+            )));
+        }
+
+        let input_shape = input_shape.unwrap();
+
+        // Compute new shape by inserting 1s at specified axes
+        // Axes can be negative (counting from end of OUTPUT shape)
+        let mut sorted_axes = axes_values.clone();
+        sorted_axes.sort_unstable();
+
+        let mut new_shape = input_shape.clone();
+        for &axis in &sorted_axes {
+            let insert_pos = if axis < 0 {
+                // Negative axis: count from the end of the *output* shape
+                // For unsqueeze, output_rank = input_rank + len(axes)
+                let output_rank = (input_shape.len() + sorted_axes.len()) as i64;
+                let normalized = output_rank + axis;
+                if normalized < 0 {
+                    return Err(OnnxError::InvalidShape(format!(
+                        "Unsqueeze axis {} is out of bounds for shape {:?}",
+                        axis, input_shape
+                    )));
+                }
+                normalized as usize
+            } else {
+                axis as usize
+            };
+
+            if insert_pos > new_shape.len() {
+                return Err(OnnxError::InvalidShape(format!(
+                    "Unsqueeze axis {} is out of bounds for shape {:?}",
+                    axis, input_shape
+                )));
+            }
+
+            new_shape.insert(insert_pos, 1);
+        }
+
+        // Convert to WebNN reshape operation (WebNN doesn't have unsqueeze)
+        let mut options = Map::new();
+        options.insert(
+            "newShape".to_string(),
+            serde_json::json!(new_shape.iter().map(|&v| v as u32).collect::<Vec<_>>()),
+        );
+
         let mut result = ConversionResult::new(vec![Node {
             id: output_name.clone(),
-            op: "unsqueeze".to_string(),
-            inputs: vec![input0], // Only the data input, no axes input
-            options: {
-                let mut o = options;
-                o.insert("axes".to_string(), serde_json::json!(axes_values));
-                o
-            },
+            op: "reshape".to_string(),  // Changed from "unsqueeze" to "reshape"
+            inputs: vec![input0],
+            options,
             outputs: None,
         }]);
 

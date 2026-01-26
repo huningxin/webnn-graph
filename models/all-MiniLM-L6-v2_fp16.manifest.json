@@ -1,0 +1,1713 @@
+{
+  "format": "wg-weights-manifest",
+  "version": 1,
+  "endianness": "little",
+  "tensors": {
+    "_embeddings_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134856,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_embeddings_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134864,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_embeddings_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134872,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_embeddings_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134848,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_10_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134960,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_11_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134968,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_13_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134976,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_14_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134984,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_15_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134992,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134888,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134896,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134904,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_4_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134912,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_5_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134920,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_6_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134928,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_7_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45134936,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_8_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134944,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_9_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134952,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_0_attention_self_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45134880,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_10_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135080,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_11_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135088,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_13_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135096,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_14_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135104,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_15_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135112,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135008,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135016,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135024,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_4_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135032,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_5_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135040,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_6_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135048,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_7_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135056,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_8_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135064,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_9_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135072,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_1_attention_self_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135000,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_10_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135200,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_11_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135208,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_13_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135216,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_14_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135224,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_15_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135232,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135128,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135136,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135144,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_4_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135152,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_5_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135160,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_6_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135168,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_7_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135176,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_8_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135184,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_9_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135192,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_2_attention_self_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135120,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_10_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135320,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_11_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135328,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_13_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135336,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_14_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135344,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_15_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135352,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135248,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135256,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135264,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_4_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135272,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_5_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135280,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_6_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135288,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_7_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135296,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_8_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135304,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_9_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135312,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_3_attention_self_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135240,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_10_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135440,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_11_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135448,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_13_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135456,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_14_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135464,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_15_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135472,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135368,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135376,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135384,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_4_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135392,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_5_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135400,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_6_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135408,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_7_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135416,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_8_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135424,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_9_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135432,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_4_attention_self_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135360,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_10_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135560,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_11_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135568,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_13_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135576,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_14_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135584,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_15_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135592,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_1_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135488,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_2_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135496,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_3_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135504,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_4_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135512,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_5_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135520,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_6_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135528,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_7_output_0": {
+      "dataType": "int64",
+      "shape": [
+        1
+      ],
+      "byteOffset": 45135536,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_8_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135544,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_9_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135552,
+      "byteLength": 8,
+      "layout": null
+    },
+    "_encoder_layer_5_attention_self_Constant_output_0": {
+      "dataType": "int64",
+      "shape": [],
+      "byteOffset": 45135480,
+      "byteLength": 8,
+      "layout": null
+    },
+    "embeddings_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23840512,
+      "byteLength": 768,
+      "layout": null
+    },
+    "embeddings_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23839744,
+      "byteLength": 768,
+      "layout": null
+    },
+    "embeddings_position_embeddings_weight": {
+      "dataType": "float16",
+      "shape": [
+        512,
+        384
+      ],
+      "byteOffset": 23444992,
+      "byteLength": 393216,
+      "layout": null
+    },
+    "embeddings_position_ids": {
+      "dataType": "int64",
+      "shape": [
+        1,
+        512
+      ],
+      "byteOffset": 0,
+      "byteLength": 4096,
+      "layout": null
+    },
+    "embeddings_token_type_embeddings_weight": {
+      "dataType": "float16",
+      "shape": [
+        2,
+        384
+      ],
+      "byteOffset": 23838208,
+      "byteLength": 1536,
+      "layout": null
+    },
+    "embeddings_word_embeddings_weight": {
+      "dataType": "float16",
+      "shape": [
+        30522,
+        384
+      ],
+      "byteOffset": 4096,
+      "byteLength": 23440896,
+      "layout": null
+    },
+    "encoder_layer_0_attention_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23845120,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_attention_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23844352,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_attention_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23843584,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_attention_self_key_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23842048,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_attention_self_query_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23841280,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_attention_self_value_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23842816,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_intermediate_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        1536
+      ],
+      "byteOffset": 23845888,
+      "byteLength": 3072,
+      "layout": null
+    },
+    "encoder_layer_0_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23850496,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23849728,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_0_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23848960,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_attention_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23855104,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_attention_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23854336,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_attention_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23853568,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_attention_self_key_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23852032,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_attention_self_query_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23851264,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_attention_self_value_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23852800,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_intermediate_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        1536
+      ],
+      "byteOffset": 23855872,
+      "byteLength": 3072,
+      "layout": null
+    },
+    "encoder_layer_1_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23860480,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23859712,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_1_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23858944,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_attention_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23865088,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_attention_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23864320,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_attention_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23863552,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_attention_self_key_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23862016,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_attention_self_query_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23861248,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_attention_self_value_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23862784,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_intermediate_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        1536
+      ],
+      "byteOffset": 23865856,
+      "byteLength": 3072,
+      "layout": null
+    },
+    "encoder_layer_2_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23870464,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23869696,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_2_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23868928,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_attention_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23875072,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_attention_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23874304,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_attention_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23873536,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_attention_self_key_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23872000,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_attention_self_query_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23871232,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_attention_self_value_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23872768,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_intermediate_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        1536
+      ],
+      "byteOffset": 23875840,
+      "byteLength": 3072,
+      "layout": null
+    },
+    "encoder_layer_3_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23880448,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23879680,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_3_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23878912,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_attention_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23885056,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_attention_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23884288,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_attention_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23883520,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_attention_self_key_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23881984,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_attention_self_query_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23881216,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_attention_self_value_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23882752,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_intermediate_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        1536
+      ],
+      "byteOffset": 23885824,
+      "byteLength": 3072,
+      "layout": null
+    },
+    "encoder_layer_4_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23890432,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23889664,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_4_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23888896,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_attention_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23895040,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_attention_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23894272,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_attention_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23893504,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_attention_self_key_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23891968,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_attention_self_query_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23891200,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_attention_self_value_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23892736,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_intermediate_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        1536
+      ],
+      "byteOffset": 23895808,
+      "byteLength": 3072,
+      "layout": null
+    },
+    "encoder_layer_5_output_LayerNorm_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23900416,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_output_LayerNorm_weight": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23899648,
+      "byteLength": 768,
+      "layout": null
+    },
+    "encoder_layer_5_output_dense_bias": {
+      "dataType": "float16",
+      "shape": [
+        384
+      ],
+      "byteOffset": 23898880,
+      "byteLength": 768,
+      "layout": null
+    },
+    "onnx__MatMul_787": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 23901184,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_788": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 24196096,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_791": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 24491008,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_797": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 24785920,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_798": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        1536
+      ],
+      "byteOffset": 25080832,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_799": {
+      "dataType": "float16",
+      "shape": [
+        1536,
+        384
+      ],
+      "byteOffset": 26260480,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_800": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 27440128,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_801": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 27735040,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_804": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 28029952,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_810": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 28324864,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_811": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        1536
+      ],
+      "byteOffset": 28619776,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_812": {
+      "dataType": "float16",
+      "shape": [
+        1536,
+        384
+      ],
+      "byteOffset": 29799424,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_813": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 30979072,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_814": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 31273984,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_817": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 31568896,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_823": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 31863808,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_824": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        1536
+      ],
+      "byteOffset": 32158720,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_825": {
+      "dataType": "float16",
+      "shape": [
+        1536,
+        384
+      ],
+      "byteOffset": 33338368,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_826": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 34518016,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_827": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 34812928,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_830": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 35107840,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_836": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 35402752,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_837": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        1536
+      ],
+      "byteOffset": 35697664,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_838": {
+      "dataType": "float16",
+      "shape": [
+        1536,
+        384
+      ],
+      "byteOffset": 36877312,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_839": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 38056960,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_840": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 38351872,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_843": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 38646784,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_849": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 38941696,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_850": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        1536
+      ],
+      "byteOffset": 39236608,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_851": {
+      "dataType": "float16",
+      "shape": [
+        1536,
+        384
+      ],
+      "byteOffset": 40416256,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_852": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 41595904,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_853": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 41890816,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_856": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 42185728,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_862": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        384
+      ],
+      "byteOffset": 42480640,
+      "byteLength": 294912,
+      "layout": null
+    },
+    "onnx__MatMul_863": {
+      "dataType": "float16",
+      "shape": [
+        384,
+        1536
+      ],
+      "byteOffset": 42775552,
+      "byteLength": 1179648,
+      "layout": null
+    },
+    "onnx__MatMul_864": {
+      "dataType": "float16",
+      "shape": [
+        1536,
+        384
+      ],
+      "byteOffset": 43955200,
+      "byteLength": 1179648,
+      "layout": null
+    }
+  }
+}

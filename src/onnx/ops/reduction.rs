@@ -86,9 +86,20 @@ impl ReductionHandler {
 
         let mut options = Map::new();
 
-        // Add axes if specified
+        // Add axes if specified, normalizing negative indices
         if let Some(axes_values) = axes {
-            options.insert("axes".to_string(), serde_json::json!(axes_values));
+            // Get input tensor rank to normalize negative axes
+            let normalized_axes = if let Some(shape) = context.value_shapes.get(&inputs[0]) {
+                let rank = shape.len() as i64;
+                axes_values
+                    .iter()
+                    .map(|&axis| if axis < 0 { rank + axis } else { axis })
+                    .collect::<Vec<i64>>()
+            } else {
+                // If shape unknown, pass through as-is (shouldn't happen in practice)
+                axes_values
+            };
+            options.insert("axes".to_string(), serde_json::json!(normalized_axes));
         }
 
         // Add keepDims option (WebNN uses keepDimensions)

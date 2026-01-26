@@ -162,6 +162,104 @@ pub fn emit_builder_js(g: &GraphJson) -> String {
     s.push('\n');
 
     for n in &g.nodes {
+        // Special handling for constant operation with inline base64 data
+        if n.op == "constant" {
+            if let Some(data) = n.options.get("data").and_then(|v| v.as_str()) {
+                let data_type = n.options.get("dataType")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("float32");
+                let shape = n.options.get("shape")
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "[]".to_string());
+                
+                // Decode base64 data to ArrayBuffer
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.constant({{ dataType: {dt:?}, shape: {shape} }}, Uint8Array.from(atob({data:?}), c => c.charCodeAt(0)).buffer));\n",
+                    id = n.id,
+                    dt = data_type,
+                    shape = shape,
+                    data = data
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for cast operation - extract 'to' parameter as direct argument
+        if n.op == "cast" {
+            let input_ref = &n.inputs[0];
+            if let Some(to_type) = n.options.get("to").and_then(|v| v.as_str()) {
+                // WebNN cast: builder.cast(input, dataType) not builder.cast(input, {to: dataType})
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.cast(env.get({input:?}), {to_type:?}));\n",
+                    id = n.id,
+                    input = input_ref,
+                    to_type = to_type
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for reshape operation - extract 'newShape' parameter as direct argument
+        if n.op == "reshape" {
+            let input_ref = &n.inputs[0];
+            if let Some(new_shape) = n.options.get("newShape") {
+                // WebNN reshape: builder.reshape(input, newShape) not builder.reshape(input, {newShape: [...]})
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.reshape(env.get({input:?}), {new_shape}));\n",
+                    id = n.id,
+                    input = input_ref,
+                    new_shape = new_shape
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for slice operation - extract starts and sizes as direct arguments
+        if n.op == "slice" {
+            let input_ref = &n.inputs[0];
+            if let (Some(starts), Some(ends)) = (n.options.get("starts"), n.options.get("ends")) {
+                // Calculate sizes from starts and ends
+                // WebNN slice: builder.slice(input, starts, sizes, {strides: ...})
+                let starts_arr = starts.as_array().unwrap();
+                let ends_arr = ends.as_array().unwrap();
+                let sizes: Vec<i64> = starts_arr.iter().zip(ends_arr.iter())
+                    .map(|(s, e)| e.as_i64().unwrap() - s.as_i64().unwrap())
+                    .collect();
+                
+                let mut options = serde_json::Map::new();
+                if let Some(steps) = n.options.get("steps") {
+                    options.insert("strides".to_string(), steps.clone());
+                }
+                let opts_str = serde_json::Value::Object(options).to_string();
+                
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.slice(env.get({input:?}), {starts}, {sizes:?}, {opts}));\n",
+                    id = n.id,
+                    input = input_ref,
+                    starts = starts,
+                    sizes = sizes,
+                    opts = opts_str
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for softmax operation - extract 'axis' parameter as direct argument
+        if n.op == "softmax" {
+            let input_ref = &n.inputs[0];
+            if let Some(axis) = n.options.get("axis") {
+                // WebNN softmax: builder.softmax(input, axis) not builder.softmax(input, {axis: value})
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder[\"softmax\"](env.get({input:?}), {axis}));\n",
+                    id = n.id,
+                    input = input_ref,
+                    axis = axis
+                ));
+                continue;
+            }
+        }
+
+        // Regular operation handling
         let ins = n
             .inputs
             .iter()

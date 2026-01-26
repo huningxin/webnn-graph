@@ -81,9 +81,19 @@ impl NormalizationHandler {
         options.insert("epsilon".to_string(), serde_json::json!(epsilon));
 
         // WebNN layerNormalization uses axes parameter (array)
-        // Convert ONNX axis to axes array
+        // Convert ONNX axis to axes array, normalizing negative indices
         if axis != -1 {
-            options.insert("axes".to_string(), serde_json::json!([axis]));
+            let normalized_axis = if axis < 0 {
+                if let Some(shape) = context.value_shapes.get(&inputs[0]) {
+                    let rank = shape.len() as i64;
+                    rank + axis
+                } else {
+                    axis // Shape unknown, pass through
+                }
+            } else {
+                axis
+            };
+            options.insert("axes".to_string(), serde_json::json!([normalized_axis]));
         }
 
         // LayerNormalization can have scale and bias as inputs
@@ -154,7 +164,18 @@ impl NormalizationHandler {
 
         let mut options = Map::new();
         // WebNN softmax uses axis parameter (single value)
-        options.insert("axis".to_string(), serde_json::json!(axis));
+        // Normalize negative axis to positive index
+        let normalized_axis = if axis < 0 {
+            if let Some(shape) = context.value_shapes.get(&inputs[0]) {
+                let rank = shape.len() as i64;
+                rank + axis
+            } else {
+                axis // Shape unknown, pass through
+            }
+        } else {
+            axis
+        };
+        options.insert("axis".to_string(), serde_json::json!(normalized_axis));
 
         let mut result = ConversionResult::new(vec![Node {
             id: output_name.clone(),
