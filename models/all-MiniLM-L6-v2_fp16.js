@@ -92,10 +92,10 @@ export class WeightsFile {
 export async function buildGraph(context, weights) {
   const builder = new MLGraphBuilder(context);
   const env = new Map();
-
-  env.set("attention_mask", builder.input("attention_mask", { dataType: "int64", shape: [1, 128] }));
-  env.set("input_ids", builder.input("input_ids", { dataType: "int64", shape: [1, 128] }));
-  env.set("token_type_ids", builder.input("token_type_ids", { dataType: "int64", shape: [1, 128] }));
+  const sequenceLengthDim = {name: "sequenceLength", maxSize: 128};
+  env.set("attention_mask", builder.input("attention_mask", { dataType: "int64", shape: [1, sequenceLengthDim] }));
+  env.set("input_ids", builder.input("input_ids", { dataType: "int64", shape: [1, sequenceLengthDim] }));
+  env.set("token_type_ids", builder.input("token_type_ids", { dataType: "int64", shape: [1, sequenceLengthDim] }));
 
   {
     const sl = weights.getSlice("_embeddings_Constant_1_output_0");
@@ -1249,14 +1249,16 @@ export async function buildGraph(context, weights) {
     env.set("onnx__MatMul_864", builder.constant({ dataType: "float16", shape: [1536, 384] }, buf));
   }
 
-  env.set("_Unsqueeze_output_0", builder.reshape(env.get("attention_mask"), [1,1,128]));
-  env.set("_Unsqueeze_1_output_0", builder.reshape(env.get("_Unsqueeze_output_0"), [1,1,1,128]));
+  env.set("_Unsqueeze_output_0", builder.reshape(env.get("attention_mask"), [1,1,sequenceLengthDim]));
+  env.set("_Unsqueeze_1_output_0", builder.reshape(env.get("_Unsqueeze_output_0"), [1,1,1,sequenceLengthDim]));
   env.set("_Cast_output_0", builder.cast(env.get("_Unsqueeze_1_output_0"), "float16"));
   env.set("_Constant_output_0", builder.constant({ dataType: "float16", shape: [] }, Uint8Array.from(atob("ADw="), c => c.charCodeAt(0)).buffer));
   env.set("_Sub_output_0", builder["sub"](env.get("_Constant_output_0"), env.get("_Cast_output_0"), {}));
   env.set("_Constant_1_output_0", builder.constant({ dataType: "float16", shape: [] }, Uint8Array.from(atob("4vA="), c => c.charCodeAt(0)).buffer));
   env.set("_Mul_output_0", builder["mul"](env.get("_Sub_output_0"), env.get("_Constant_1_output_0"), {}));
-  env.set("_embeddings_Slice_output_0", builder.slice(env.get("embeddings_position_ids"), [0,0], [1, 128], {"strides":[1,1]}));
+  // Change _embeddings_Slice_output_0 as an input because Slice with dynamic input is not supported yet.
+  // env.set("_embeddings_Slice_output_0", builder.slice(env.get("embeddings_position_ids"), [0,0], [1, 128], {"strides":[1,1]}));
+  env.set("_embeddings_Slice_output_0", builder.input("_embeddings_Slice_output_0", { dataType: "int64", shape: [1, sequenceLengthDim] }));
   env.set("_embeddings_word_embeddings_Gather_output_0", builder["gather"](env.get("embeddings_word_embeddings_weight"), env.get("input_ids"), {"axis":0,"shape":[1,128,384]}));
   env.set("_embeddings_token_type_embeddings_Gather_output_0", builder["gather"](env.get("embeddings_token_type_embeddings_weight"), env.get("token_type_ids"), {"axis":0,"shape":[1,128,384]}));
   env.set("_embeddings_Add_output_0", builder["add"](env.get("_embeddings_word_embeddings_Gather_output_0"), env.get("_embeddings_token_type_embeddings_Gather_output_0"), {}));
@@ -1277,12 +1279,12 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_0_attention_self_query_Add_output_0", builder["add"](env.get("encoder_layer_0_attention_self_query_bias"), env.get("_encoder_layer_0_attention_self_query_MatMul_output_0"), {}));
   env.set("_encoder_layer_0_attention_self_key_MatMul_output_0", builder["matmul"](env.get("_embeddings_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_788"), {}));
   env.set("_encoder_layer_0_attention_self_key_Add_output_0", builder["add"](env.get("encoder_layer_0_attention_self_key_bias"), env.get("_encoder_layer_0_attention_self_key_MatMul_output_0"), {}));
-  env.set("_encoder_layer_0_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_key_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_0_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_key_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_0_attention_self_value_MatMul_output_0", builder["matmul"](env.get("_embeddings_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_791"), {}));
   env.set("_encoder_layer_0_attention_self_value_Add_output_0", builder["add"](env.get("encoder_layer_0_attention_self_value_bias"), env.get("_encoder_layer_0_attention_self_value_MatMul_output_0"), {}));
-  env.set("_encoder_layer_0_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_value_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_0_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_value_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_0_attention_self_Transpose_output_0", builder["transpose"](env.get("_encoder_layer_0_attention_self_Reshape_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_0_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_query_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_0_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_query_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_0_attention_self_Transpose_1_output_0", builder["transpose"](env.get("_encoder_layer_0_attention_self_Reshape_2_output_0"), {"permutation":[0,2,1,3]}));
   env.set("_encoder_layer_0_attention_self_Transpose_2_output_0", builder["transpose"](env.get("_encoder_layer_0_attention_self_Reshape_output_0"), {"permutation":[0,2,3,1]}));
   env.set("_encoder_layer_0_attention_self_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_0_attention_self_Transpose_1_output_0"), env.get("_encoder_layer_0_attention_self_Transpose_2_output_0"), {}));
@@ -1292,7 +1294,7 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_0_attention_self_Softmax_output_0", builder["softmax"](env.get("_encoder_layer_0_attention_self_Add_output_0"), 3));
   env.set("_encoder_layer_0_attention_self_MatMul_1_output_0", builder["matmul"](env.get("_encoder_layer_0_attention_self_Softmax_output_0"), env.get("_encoder_layer_0_attention_self_Transpose_output_0"), {}));
   env.set("_encoder_layer_0_attention_self_Transpose_3_output_0", builder["transpose"](env.get("_encoder_layer_0_attention_self_MatMul_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_0_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_Transpose_3_output_0"), [1,128,384]));
+  env.set("_encoder_layer_0_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_0_attention_self_Transpose_3_output_0"), [1,sequenceLengthDim,384]));
   env.set("_encoder_layer_0_attention_output_dense_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_0_attention_self_Reshape_3_output_0"), env.get("onnx__MatMul_797"), {}));
   env.set("_encoder_layer_0_attention_output_dense_Add_output_0", builder["add"](env.get("encoder_layer_0_attention_output_dense_bias"), env.get("_encoder_layer_0_attention_output_dense_MatMul_output_0"), {}));
   env.set("_encoder_layer_0_attention_output_Add_output_0", builder["add"](env.get("_encoder_layer_0_attention_output_dense_Add_output_0"), env.get("_embeddings_LayerNorm_Add_1_output_0"), {}));
@@ -1335,12 +1337,12 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_1_attention_self_query_Add_output_0", builder["add"](env.get("encoder_layer_1_attention_self_query_bias"), env.get("_encoder_layer_1_attention_self_query_MatMul_output_0"), {}));
   env.set("_encoder_layer_1_attention_self_key_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_0_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_801"), {}));
   env.set("_encoder_layer_1_attention_self_key_Add_output_0", builder["add"](env.get("encoder_layer_1_attention_self_key_bias"), env.get("_encoder_layer_1_attention_self_key_MatMul_output_0"), {}));
-  env.set("_encoder_layer_1_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_key_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_1_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_key_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_1_attention_self_value_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_0_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_804"), {}));
   env.set("_encoder_layer_1_attention_self_value_Add_output_0", builder["add"](env.get("encoder_layer_1_attention_self_value_bias"), env.get("_encoder_layer_1_attention_self_value_MatMul_output_0"), {}));
-  env.set("_encoder_layer_1_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_value_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_1_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_value_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_1_attention_self_Transpose_output_0", builder["transpose"](env.get("_encoder_layer_1_attention_self_Reshape_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_1_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_query_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_1_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_query_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_1_attention_self_Transpose_1_output_0", builder["transpose"](env.get("_encoder_layer_1_attention_self_Reshape_2_output_0"), {"permutation":[0,2,1,3]}));
   env.set("_encoder_layer_1_attention_self_Transpose_2_output_0", builder["transpose"](env.get("_encoder_layer_1_attention_self_Reshape_output_0"), {"permutation":[0,2,3,1]}));
   env.set("_encoder_layer_1_attention_self_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_1_attention_self_Transpose_1_output_0"), env.get("_encoder_layer_1_attention_self_Transpose_2_output_0"), {}));
@@ -1350,7 +1352,7 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_1_attention_self_Softmax_output_0", builder["softmax"](env.get("_encoder_layer_1_attention_self_Add_output_0"), 3));
   env.set("_encoder_layer_1_attention_self_MatMul_1_output_0", builder["matmul"](env.get("_encoder_layer_1_attention_self_Softmax_output_0"), env.get("_encoder_layer_1_attention_self_Transpose_output_0"), {}));
   env.set("_encoder_layer_1_attention_self_Transpose_3_output_0", builder["transpose"](env.get("_encoder_layer_1_attention_self_MatMul_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_1_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_Transpose_3_output_0"), [1,128,384]));
+  env.set("_encoder_layer_1_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_1_attention_self_Transpose_3_output_0"), [1,sequenceLengthDim,384]));
   env.set("_encoder_layer_1_attention_output_dense_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_1_attention_self_Reshape_3_output_0"), env.get("onnx__MatMul_810"), {}));
   env.set("_encoder_layer_1_attention_output_dense_Add_output_0", builder["add"](env.get("encoder_layer_1_attention_output_dense_bias"), env.get("_encoder_layer_1_attention_output_dense_MatMul_output_0"), {}));
   env.set("_encoder_layer_1_attention_output_Add_output_0", builder["add"](env.get("_encoder_layer_1_attention_output_dense_Add_output_0"), env.get("_encoder_layer_0_output_LayerNorm_Add_1_output_0"), {}));
@@ -1393,12 +1395,12 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_2_attention_self_query_Add_output_0", builder["add"](env.get("encoder_layer_2_attention_self_query_bias"), env.get("_encoder_layer_2_attention_self_query_MatMul_output_0"), {}));
   env.set("_encoder_layer_2_attention_self_key_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_1_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_814"), {}));
   env.set("_encoder_layer_2_attention_self_key_Add_output_0", builder["add"](env.get("encoder_layer_2_attention_self_key_bias"), env.get("_encoder_layer_2_attention_self_key_MatMul_output_0"), {}));
-  env.set("_encoder_layer_2_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_key_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_2_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_key_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_2_attention_self_value_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_1_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_817"), {}));
   env.set("_encoder_layer_2_attention_self_value_Add_output_0", builder["add"](env.get("encoder_layer_2_attention_self_value_bias"), env.get("_encoder_layer_2_attention_self_value_MatMul_output_0"), {}));
-  env.set("_encoder_layer_2_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_value_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_2_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_value_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_2_attention_self_Transpose_output_0", builder["transpose"](env.get("_encoder_layer_2_attention_self_Reshape_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_2_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_query_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_2_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_query_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_2_attention_self_Transpose_1_output_0", builder["transpose"](env.get("_encoder_layer_2_attention_self_Reshape_2_output_0"), {"permutation":[0,2,1,3]}));
   env.set("_encoder_layer_2_attention_self_Transpose_2_output_0", builder["transpose"](env.get("_encoder_layer_2_attention_self_Reshape_output_0"), {"permutation":[0,2,3,1]}));
   env.set("_encoder_layer_2_attention_self_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_2_attention_self_Transpose_1_output_0"), env.get("_encoder_layer_2_attention_self_Transpose_2_output_0"), {}));
@@ -1408,7 +1410,7 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_2_attention_self_Softmax_output_0", builder["softmax"](env.get("_encoder_layer_2_attention_self_Add_output_0"), 3));
   env.set("_encoder_layer_2_attention_self_MatMul_1_output_0", builder["matmul"](env.get("_encoder_layer_2_attention_self_Softmax_output_0"), env.get("_encoder_layer_2_attention_self_Transpose_output_0"), {}));
   env.set("_encoder_layer_2_attention_self_Transpose_3_output_0", builder["transpose"](env.get("_encoder_layer_2_attention_self_MatMul_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_2_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_Transpose_3_output_0"), [1,128,384]));
+  env.set("_encoder_layer_2_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_2_attention_self_Transpose_3_output_0"), [1,sequenceLengthDim,384]));
   env.set("_encoder_layer_2_attention_output_dense_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_2_attention_self_Reshape_3_output_0"), env.get("onnx__MatMul_823"), {}));
   env.set("_encoder_layer_2_attention_output_dense_Add_output_0", builder["add"](env.get("encoder_layer_2_attention_output_dense_bias"), env.get("_encoder_layer_2_attention_output_dense_MatMul_output_0"), {}));
   env.set("_encoder_layer_2_attention_output_Add_output_0", builder["add"](env.get("_encoder_layer_2_attention_output_dense_Add_output_0"), env.get("_encoder_layer_1_output_LayerNorm_Add_1_output_0"), {}));
@@ -1451,12 +1453,12 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_3_attention_self_query_Add_output_0", builder["add"](env.get("encoder_layer_3_attention_self_query_bias"), env.get("_encoder_layer_3_attention_self_query_MatMul_output_0"), {}));
   env.set("_encoder_layer_3_attention_self_key_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_2_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_827"), {}));
   env.set("_encoder_layer_3_attention_self_key_Add_output_0", builder["add"](env.get("encoder_layer_3_attention_self_key_bias"), env.get("_encoder_layer_3_attention_self_key_MatMul_output_0"), {}));
-  env.set("_encoder_layer_3_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_key_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_3_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_key_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_3_attention_self_value_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_2_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_830"), {}));
   env.set("_encoder_layer_3_attention_self_value_Add_output_0", builder["add"](env.get("encoder_layer_3_attention_self_value_bias"), env.get("_encoder_layer_3_attention_self_value_MatMul_output_0"), {}));
-  env.set("_encoder_layer_3_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_value_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_3_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_value_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_3_attention_self_Transpose_output_0", builder["transpose"](env.get("_encoder_layer_3_attention_self_Reshape_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_3_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_query_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_3_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_query_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_3_attention_self_Transpose_1_output_0", builder["transpose"](env.get("_encoder_layer_3_attention_self_Reshape_2_output_0"), {"permutation":[0,2,1,3]}));
   env.set("_encoder_layer_3_attention_self_Transpose_2_output_0", builder["transpose"](env.get("_encoder_layer_3_attention_self_Reshape_output_0"), {"permutation":[0,2,3,1]}));
   env.set("_encoder_layer_3_attention_self_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_3_attention_self_Transpose_1_output_0"), env.get("_encoder_layer_3_attention_self_Transpose_2_output_0"), {}));
@@ -1466,7 +1468,7 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_3_attention_self_Softmax_output_0", builder["softmax"](env.get("_encoder_layer_3_attention_self_Add_output_0"), 3));
   env.set("_encoder_layer_3_attention_self_MatMul_1_output_0", builder["matmul"](env.get("_encoder_layer_3_attention_self_Softmax_output_0"), env.get("_encoder_layer_3_attention_self_Transpose_output_0"), {}));
   env.set("_encoder_layer_3_attention_self_Transpose_3_output_0", builder["transpose"](env.get("_encoder_layer_3_attention_self_MatMul_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_3_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_Transpose_3_output_0"), [1,128,384]));
+  env.set("_encoder_layer_3_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_3_attention_self_Transpose_3_output_0"), [1,sequenceLengthDim,384]));
   env.set("_encoder_layer_3_attention_output_dense_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_3_attention_self_Reshape_3_output_0"), env.get("onnx__MatMul_836"), {}));
   env.set("_encoder_layer_3_attention_output_dense_Add_output_0", builder["add"](env.get("encoder_layer_3_attention_output_dense_bias"), env.get("_encoder_layer_3_attention_output_dense_MatMul_output_0"), {}));
   env.set("_encoder_layer_3_attention_output_Add_output_0", builder["add"](env.get("_encoder_layer_3_attention_output_dense_Add_output_0"), env.get("_encoder_layer_2_output_LayerNorm_Add_1_output_0"), {}));
@@ -1509,12 +1511,12 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_4_attention_self_query_Add_output_0", builder["add"](env.get("encoder_layer_4_attention_self_query_bias"), env.get("_encoder_layer_4_attention_self_query_MatMul_output_0"), {}));
   env.set("_encoder_layer_4_attention_self_key_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_3_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_840"), {}));
   env.set("_encoder_layer_4_attention_self_key_Add_output_0", builder["add"](env.get("encoder_layer_4_attention_self_key_bias"), env.get("_encoder_layer_4_attention_self_key_MatMul_output_0"), {}));
-  env.set("_encoder_layer_4_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_key_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_4_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_key_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_4_attention_self_value_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_3_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_843"), {}));
   env.set("_encoder_layer_4_attention_self_value_Add_output_0", builder["add"](env.get("encoder_layer_4_attention_self_value_bias"), env.get("_encoder_layer_4_attention_self_value_MatMul_output_0"), {}));
-  env.set("_encoder_layer_4_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_value_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_4_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_value_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_4_attention_self_Transpose_output_0", builder["transpose"](env.get("_encoder_layer_4_attention_self_Reshape_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_4_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_query_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_4_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_query_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_4_attention_self_Transpose_1_output_0", builder["transpose"](env.get("_encoder_layer_4_attention_self_Reshape_2_output_0"), {"permutation":[0,2,1,3]}));
   env.set("_encoder_layer_4_attention_self_Transpose_2_output_0", builder["transpose"](env.get("_encoder_layer_4_attention_self_Reshape_output_0"), {"permutation":[0,2,3,1]}));
   env.set("_encoder_layer_4_attention_self_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_4_attention_self_Transpose_1_output_0"), env.get("_encoder_layer_4_attention_self_Transpose_2_output_0"), {}));
@@ -1524,7 +1526,7 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_4_attention_self_Softmax_output_0", builder["softmax"](env.get("_encoder_layer_4_attention_self_Add_output_0"), 3));
   env.set("_encoder_layer_4_attention_self_MatMul_1_output_0", builder["matmul"](env.get("_encoder_layer_4_attention_self_Softmax_output_0"), env.get("_encoder_layer_4_attention_self_Transpose_output_0"), {}));
   env.set("_encoder_layer_4_attention_self_Transpose_3_output_0", builder["transpose"](env.get("_encoder_layer_4_attention_self_MatMul_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_4_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_Transpose_3_output_0"), [1,128,384]));
+  env.set("_encoder_layer_4_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_4_attention_self_Transpose_3_output_0"), [1,sequenceLengthDim,384]));
   env.set("_encoder_layer_4_attention_output_dense_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_4_attention_self_Reshape_3_output_0"), env.get("onnx__MatMul_849"), {}));
   env.set("_encoder_layer_4_attention_output_dense_Add_output_0", builder["add"](env.get("encoder_layer_4_attention_output_dense_bias"), env.get("_encoder_layer_4_attention_output_dense_MatMul_output_0"), {}));
   env.set("_encoder_layer_4_attention_output_Add_output_0", builder["add"](env.get("_encoder_layer_4_attention_output_dense_Add_output_0"), env.get("_encoder_layer_3_output_LayerNorm_Add_1_output_0"), {}));
@@ -1567,12 +1569,12 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_5_attention_self_query_Add_output_0", builder["add"](env.get("encoder_layer_5_attention_self_query_bias"), env.get("_encoder_layer_5_attention_self_query_MatMul_output_0"), {}));
   env.set("_encoder_layer_5_attention_self_key_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_4_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_853"), {}));
   env.set("_encoder_layer_5_attention_self_key_Add_output_0", builder["add"](env.get("encoder_layer_5_attention_self_key_bias"), env.get("_encoder_layer_5_attention_self_key_MatMul_output_0"), {}));
-  env.set("_encoder_layer_5_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_key_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_5_attention_self_Reshape_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_key_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_5_attention_self_value_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_4_output_LayerNorm_Add_1_output_0"), env.get("onnx__MatMul_856"), {}));
   env.set("_encoder_layer_5_attention_self_value_Add_output_0", builder["add"](env.get("encoder_layer_5_attention_self_value_bias"), env.get("_encoder_layer_5_attention_self_value_MatMul_output_0"), {}));
-  env.set("_encoder_layer_5_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_value_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_5_attention_self_Reshape_1_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_value_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_5_attention_self_Transpose_output_0", builder["transpose"](env.get("_encoder_layer_5_attention_self_Reshape_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_5_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_query_Add_output_0"), [1,128,12,32]));
+  env.set("_encoder_layer_5_attention_self_Reshape_2_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_query_Add_output_0"), [1,sequenceLengthDim,12,32]));
   env.set("_encoder_layer_5_attention_self_Transpose_1_output_0", builder["transpose"](env.get("_encoder_layer_5_attention_self_Reshape_2_output_0"), {"permutation":[0,2,1,3]}));
   env.set("_encoder_layer_5_attention_self_Transpose_2_output_0", builder["transpose"](env.get("_encoder_layer_5_attention_self_Reshape_output_0"), {"permutation":[0,2,3,1]}));
   env.set("_encoder_layer_5_attention_self_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_5_attention_self_Transpose_1_output_0"), env.get("_encoder_layer_5_attention_self_Transpose_2_output_0"), {}));
@@ -1582,7 +1584,7 @@ export async function buildGraph(context, weights) {
   env.set("_encoder_layer_5_attention_self_Softmax_output_0", builder["softmax"](env.get("_encoder_layer_5_attention_self_Add_output_0"), 3));
   env.set("_encoder_layer_5_attention_self_MatMul_1_output_0", builder["matmul"](env.get("_encoder_layer_5_attention_self_Softmax_output_0"), env.get("_encoder_layer_5_attention_self_Transpose_output_0"), {}));
   env.set("_encoder_layer_5_attention_self_Transpose_3_output_0", builder["transpose"](env.get("_encoder_layer_5_attention_self_MatMul_1_output_0"), {"permutation":[0,2,1,3]}));
-  env.set("_encoder_layer_5_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_Transpose_3_output_0"), [1,128,384]));
+  env.set("_encoder_layer_5_attention_self_Reshape_3_output_0", builder.reshape(env.get("_encoder_layer_5_attention_self_Transpose_3_output_0"), [1,sequenceLengthDim,384]));
   env.set("_encoder_layer_5_attention_output_dense_MatMul_output_0", builder["matmul"](env.get("_encoder_layer_5_attention_self_Reshape_3_output_0"), env.get("onnx__MatMul_862"), {}));
   env.set("_encoder_layer_5_attention_output_dense_Add_output_0", builder["add"](env.get("encoder_layer_5_attention_output_dense_bias"), env.get("_encoder_layer_5_attention_output_dense_MatMul_output_0"), {}));
   env.set("_encoder_layer_5_attention_output_Add_output_0", builder["add"](env.get("_encoder_layer_5_attention_output_dense_Add_output_0"), env.get("_encoder_layer_4_output_LayerNorm_Add_1_output_0"), {}));

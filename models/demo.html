@@ -291,12 +291,15 @@
         // Get selected sentence
         const sentenceIdx = parseInt(document.getElementById('sentenceSelect').value);
         const sentence = TEST_SENTENCES[sentenceIdx];
-        const seqLength = 128;
+        const seqLength = sentence.input_ids.length;
         
         // Prepare input data with real token IDs
         const inputIdsData = new BigInt64Array(seqLength);
         const attentionMaskData = new BigInt64Array(seqLength);
         const tokenTypeIdsData = new BigInt64Array(seqLength);
+        const sl = weights.getSlice("embeddings_position_ids");
+        const buf = weights.buffer.slice(sl.byteOffset, sl.byteOffset + seqLength * 8);
+        const embeddingsPositionIdsData = new BigInt64Array(buf);
         
         // Fill with actual token IDs
         for (let i = 0; i < sentence.input_ids.length; i++) {
@@ -325,15 +328,23 @@
           usage: MLTensorUsage.WRITE,
           writable: true
         };
+        const embeddingsPositionIdsDesc = {
+          dataType: 'int64',
+          shape: [1, seqLength],
+          usage: MLTensorUsage.WRITE,
+          writable: true
+        };
         
         const inputIdsTensor = await mlContext.createTensor(inputIdsDesc);
         const attentionMaskTensor = await mlContext.createTensor(attentionMaskDesc);
         const tokenTypeIdsTensor = await mlContext.createTensor(tokenTypeIdsDesc);
+        const embeddingsPositionIdsTensor = await mlContext.createTensor(embeddingsPositionIdsDesc);
         
         // Write data to tensors
         mlContext.writeTensor(inputIdsTensor, inputIdsData);
         mlContext.writeTensor(attentionMaskTensor, attentionMaskData);
         mlContext.writeTensor(tokenTypeIdsTensor, tokenTypeIdsData);
+        mlContext.writeTensor(embeddingsPositionIdsTensor, embeddingsPositionIdsData);
         
         // Create output tensor
         const outputDesc = {
@@ -350,7 +361,8 @@
           {
             input_ids: inputIdsTensor,
             attention_mask: attentionMaskTensor,
-            token_type_ids: tokenTypeIdsTensor
+            token_type_ids: tokenTypeIdsTensor,
+            "_embeddings_Slice_output_0": embeddingsPositionIdsTensor
           },
           {
             last_hidden_state: outputTensor
@@ -388,7 +400,7 @@ Input Sentence:
    Tokens: ${sentence.length}
 
 Processing Pipeline:
-   1. Token embeddings: [1, 128, 384] → ${lastHiddenState.length} Float32 values
+   1. Token embeddings: [1, ${seqLength}, 384] → ${lastHiddenState.length} Float32 values
    2. Mean pooling (attention-masked)
    3. L2 normalization
    → Final sentence embedding: [384] dimensions
