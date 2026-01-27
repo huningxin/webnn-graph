@@ -10,7 +10,7 @@ pub struct ConversionHandler;
 
 impl OpHandler for ConversionHandler {
     fn supports(&self, op_type: &str) -> bool {
-        matches!(op_type, "Cast" | "Constant")
+        matches!(op_type, "Cast" | "Constant" | "DequantizeLinear")
     }
 
     fn convert(
@@ -28,6 +28,7 @@ impl OpHandler for ConversionHandler {
         match op_type {
             "Cast" => self.convert_cast(node, &node_name, context),
             "Constant" => self.convert_constant(node, &node_name),
+            "DequantizeLinear" => self.convert_dequantize_linear(node, &node_name, context),
             _ => Err(OnnxError::UnsupportedOp {
                 op: op_type.to_string(),
                 node: node_name,
@@ -162,6 +163,127 @@ impl ConversionHandler {
             options,
             outputs: None,
         }]);
+
+        if let Some(output) = node.output.as_slice().first() {
+            result
+                .output_mappings
+                .insert(output.to_string(), output_name.clone());
+        }
+
+        Ok(result)
+    }
+
+    /// Convert ONNX DequantizeLinear to WebNN dequantizeLinear
+    /// Formula: y = (x - x_zero_point) * x_scale
+    /// Supports per-tensor, per-axis, and blocked quantization
+    fn convert_dequantize_linear(
+        &self,
+        node: &NodeProto,
+        node_name: &str,
+        context: &ConversionContext,
+    ) -> Result<ConversionResult, OnnxError> {
+        let inputs = node.input.as_slice();
+        if inputs.len() < 2 || inputs.len() > 3 {
+            return Err(OnnxError::InvalidShape(format!(
+                "DequantizeLinear expects 2 or 3 inputs, got {}",
+                inputs.len()
+            )));
+        }
+
+        let output_name = if node.output.as_slice().is_empty() {
+            format!("{}_output", node_name)
+        } else {
+            sanitize_identifier(&node.output.as_slice()[0].to_string())
+        };
+
+        // Resolve inputs
+        let x = context.resolve_input(&inputs[0]);
+        let x_scale = context.resolve_input(&inputs[1]);
+        
+        // WebNN requires zeroPoint as mandatory parameter
+        // If ONNX doesn't provide it, we need to create a zero-filled constant
+        let (x_zero_point, extra_nodes) = if inputs.len() == 3 {
+            (context.resolve_input(&inputs[2]), vec![])
+        } else {
+            // Create a zero constant tensor with the same shape as x_scale
+            let zero_point_name = format!("{}_zero_point", node_name);
+            
+            // Get scale shape from context if available, otherwise assume scalar
+            let zero_shape = if let Some(scale_shape) = context.value_shapes.get(&inputs[1]) {
+                scale_shape.clone()
+            } else {
+                vec![] // Scalar
+            };
+            
+            // Get data type from input x
+            let zero_dtype = if let Some(input_type) = context.value_types.get(&inputs[0]) {
+                format!("{:?}", input_type).to_lowercase()
+            } else {
+                "int8".to_string() // Default to int8 for quantized inputs
+            };
+            
+            let mut zero_options = Map::new();
+            zero_options.insert("dataType".to_string(), serde_json::json!(zero_dtype));
+            zero_options.insert("shape".to_string(), serde_json::json!(zero_shape));
+            zero_options.insert("value".to_string(), serde_json::json!(0));
+            
+            let zero_node = Node {
+                id: zero_point_name.clone(),
+                op: "constant".to_string(),
+                inputs: vec![],
+                options: zero_options,
+                outputs: None,
+            };
+            
+            (zero_point_name.clone(), vec![zero_node])
+        };
+
+        // Extract attributes
+        let mut axis: i64 = 1; // Default axis
+        let mut block_size: i64 = 0; // Default: not blocked
+
+        for attr in node.attribute.as_slice() {
+            match attr.name.as_str() {
+                "axis" => {
+                    if attr.i != 0 {
+                        axis = attr.i;
+                    }
+                }
+                "block_size" => {
+                    if attr.i != 0 {
+                        block_size = attr.i;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut options = Map::new();
+        
+        // Add axis if not default
+        if axis != 1 {
+            options.insert("axis".to_string(), serde_json::json!(axis));
+        }
+        
+        // Add block_size if blocked quantization
+        if block_size > 0 {
+            options.insert("blockSize".to_string(), serde_json::json!(block_size));
+        }
+
+        // Build inputs array: [x, x_scale, x_zero_point] (all three are required by WebNN)
+        let node_inputs = vec![x, x_scale, x_zero_point];
+
+        // Combine extra nodes (zero constant if needed) with main node
+        let mut all_nodes = extra_nodes;
+        all_nodes.push(Node {
+            id: output_name.clone(),
+            op: "dequantizeLinear".to_string(),
+            inputs: node_inputs,
+            options,
+            outputs: None,
+        });
+
+        let mut result = ConversionResult::new(all_nodes);
 
         if let Some(output) = node.output.as_slice().first() {
             result

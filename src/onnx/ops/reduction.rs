@@ -12,7 +12,7 @@ impl OpHandler for ReductionHandler {
     fn supports(&self, op_type: &str) -> bool {
         matches!(
             op_type,
-            "ReduceMean" | "ReduceSum" | "ReduceMax" | "ReduceMin"
+            "ReduceMean" | "ReduceSum" | "ReduceMax" | "ReduceMin" | "CumSum"
         )
     }
 
@@ -33,6 +33,7 @@ impl OpHandler for ReductionHandler {
             "ReduceSum" => self.convert_reduce(node, &node_name, "reduceSum", context),
             "ReduceMax" => self.convert_reduce(node, &node_name, "reduceMax", context),
             "ReduceMin" => self.convert_reduce(node, &node_name, "reduceMin", context),
+            "CumSum" => self.convert_cumsum(node, &node_name, context),
             _ => Err(OnnxError::UnsupportedOp {
                 op: op_type.to_string(),
                 node: node_name,
@@ -123,6 +124,120 @@ impl ReductionHandler {
         }
 
         Ok(result)
+    }
+
+    /// Convert ONNX CumSum to WebNN cumulativeSum
+    /// ONNX: CumSum(x, axis) with exclusive/reverse attributes
+    /// WebNN: cumulativeSum(input, axis, options)
+    fn convert_cumsum(
+        &self,
+        node: &NodeProto,
+        node_name: &str,
+        context: &ConversionContext,
+    ) -> Result<ConversionResult, OnnxError> {
+        let inputs = node.input.as_slice();
+        if inputs.len() != 2 {
+            return Err(OnnxError::InvalidShape(format!(
+                "CumSum expects 2 inputs (x, axis), got {}",
+                inputs.len()
+            )));
+        }
+
+        let output_name = if node.output.as_slice().is_empty() {
+            format!("{}_output", node_name)
+        } else {
+            sanitize_identifier(&node.output.as_slice()[0].to_string())
+        };
+
+        let input0 = context.resolve_input(&inputs[0]);
+
+        // Extract axis value from second input (must be a constant scalar)
+        let axis_value = self.extract_axis_value(&inputs[1], context)?;
+
+        // Extract attributes
+        let mut exclusive = false;
+        let mut reversed = false;
+
+        for attr in node.attribute.as_slice() {
+            match attr.name.as_str() {
+                "exclusive" => {
+                    exclusive = attr.i != 0;
+                }
+                "reverse" => {
+                    reversed = attr.i != 0;
+                }
+                _ => {}
+            }
+        }
+
+        let mut options = Map::new();
+        if exclusive {
+            options.insert("exclusive".to_string(), serde_json::json!(true));
+        }
+        if reversed {
+            options.insert("reversed".to_string(), serde_json::json!(true));
+        }
+
+        // WebNN cumulativeSum takes axis as direct parameter, not as input
+        // We need to handle this specially in emit_js.rs
+        options.insert("axis".to_string(), serde_json::json!(axis_value));
+
+        let mut result = ConversionResult::new(vec![Node {
+            id: output_name.clone(),
+            op: "cumulativeSum".to_string(),
+            inputs: vec![input0],
+            options,
+            outputs: None,
+        }]);
+
+        if let Some(output) = node.output.as_slice().first() {
+            result
+                .output_mappings
+                .insert(output.to_string(), output_name.clone());
+        }
+
+        Ok(result)
+    }
+
+    /// Extract axis value from a tensor input (must be a constant scalar)
+    fn extract_axis_value(
+        &self,
+        input_name: &str,
+        context: &ConversionContext,
+    ) -> Result<i64, OnnxError> {
+        // Check if it's an initializer (constant)
+        if let Some(tensor) = context.initializers.get(input_name) {
+            let data_type = tensor.data_type;
+
+            // Extract scalar value based on data type
+            match data_type {
+                x if x == crate::protos::onnx::TensorProto_DataType::Int64 as i32 => {
+                    if !tensor.int64_data.is_empty() {
+                        return Ok(tensor.int64_data[0]);
+                    } else if tensor.raw_data.len() >= 8 {
+                        let bytes = &tensor.raw_data[0..8];
+                        return Ok(i64::from_le_bytes([
+                            bytes[0], bytes[1], bytes[2], bytes[3],
+                            bytes[4], bytes[5], bytes[6], bytes[7],
+                        ]));
+                    }
+                }
+                x if x == crate::protos::onnx::TensorProto_DataType::Int32 as i32 => {
+                    if !tensor.int32_data.is_empty() {
+                        return Ok(tensor.int32_data[0] as i64);
+                    } else if tensor.raw_data.len() >= 4 {
+                        let bytes = &tensor.raw_data[0..4];
+                        return Ok(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as i64);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Err(OnnxError::InvalidShape(format!(
+            "CumSum axis must be a constant scalar tensor, got: {}",
+            input_name
+        )))
     }
 }
 

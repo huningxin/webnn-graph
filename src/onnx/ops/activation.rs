@@ -24,6 +24,7 @@ impl OpHandler for ActivationHandler {
                 | "Erf"
                 | "Cos"
                 | "Sin"
+                | "Clip"
         )
     }
 
@@ -38,6 +39,11 @@ impl OpHandler for ActivationHandler {
         } else {
             "unnamed".to_string()
         };
+
+        // Special handling for Clip - needs to extract min/max values
+        if op_type == "Clip" {
+            return self.convert_clip(node, &node_name, context);
+        }
 
         // Map ONNX operator to WebNN operation name
         let webnn_op = match op_type {
@@ -108,6 +114,126 @@ impl ActivationHandler {
         }
 
         Ok(result)
+    }
+
+    /// Convert ONNX Clip to WebNN clamp
+    /// ONNX Clip: 1-3 inputs (input, min, max)
+    /// WebNN clamp: 1 input with minValue/maxValue options
+    fn convert_clip(
+        &self,
+        node: &NodeProto,
+        node_name: &str,
+        context: &ConversionContext,
+    ) -> Result<ConversionResult, OnnxError> {
+        let inputs = node.input.as_slice();
+        if inputs.is_empty() || inputs.len() > 3 {
+            return Err(OnnxError::InvalidShape(format!(
+                "Clip expects 1-3 inputs, got {}",
+                inputs.len()
+            )));
+        }
+
+        let output_name = if node.output.as_slice().is_empty() {
+            format!("{}_output", node_name)
+        } else {
+            sanitize_identifier(&node.output.as_slice()[0].to_string())
+        };
+
+        let input0 = context.resolve_input(&inputs[0]);
+
+        let mut options = Map::new();
+
+        // Extract min value (second input if present)
+        if inputs.len() >= 2 && !inputs[1].is_empty() {
+            if let Some(min_value) = self.extract_scalar_value(&inputs[1], context)? {
+                options.insert("minValue".to_string(), min_value);
+            }
+        }
+
+        // Extract max value (third input if present)
+        if inputs.len() >= 3 && !inputs[2].is_empty() {
+            if let Some(max_value) = self.extract_scalar_value(&inputs[2], context)? {
+                options.insert("maxValue".to_string(), max_value);
+            }
+        }
+
+        let mut result = ConversionResult::new(vec![Node {
+            id: output_name.clone(),
+            op: "clamp".to_string(),
+            inputs: vec![input0],
+            options,
+            outputs: None,
+        }]);
+
+        if let Some(output) = node.output.as_slice().first() {
+            result
+                .output_mappings
+                .insert(output.to_string(), output_name.clone());
+        }
+
+        Ok(result)
+    }
+
+    /// Extract scalar value from a tensor (for min/max in Clip)
+    fn extract_scalar_value(
+        &self,
+        input_name: &str,
+        context: &ConversionContext,
+    ) -> Result<Option<serde_json::Value>, OnnxError> {
+        // Check if it's an initializer (constant)
+        if let Some(tensor) = context.initializers.get(input_name) {
+            let data_type = tensor.data_type;
+
+            // Extract scalar value based on data type
+            match data_type {
+                x if x == crate::protos::onnx::TensorProto_DataType::Float as i32 => {
+                    if !tensor.float_data.is_empty() {
+                        return Ok(Some(serde_json::json!(tensor.float_data[0])));
+                    } else if !tensor.raw_data.is_empty() {
+                        let bytes = &tensor.raw_data[0..4];
+                        let value = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                        return Ok(Some(serde_json::json!(value)));
+                    }
+                }
+                x if x == crate::protos::onnx::TensorProto_DataType::Double as i32 => {
+                    if !tensor.double_data.is_empty() {
+                        return Ok(Some(serde_json::json!(tensor.double_data[0])));
+                    } else if tensor.raw_data.len() >= 8 {
+                        let bytes = &tensor.raw_data[0..8];
+                        let value = f64::from_le_bytes([
+                            bytes[0], bytes[1], bytes[2], bytes[3],
+                            bytes[4], bytes[5], bytes[6], bytes[7],
+                        ]);
+                        return Ok(Some(serde_json::json!(value)));
+                    }
+                }
+                x if x == crate::protos::onnx::TensorProto_DataType::Int64 as i32 => {
+                    if !tensor.int64_data.is_empty() {
+                        return Ok(Some(serde_json::json!(tensor.int64_data[0])));
+                    } else if tensor.raw_data.len() >= 8 {
+                        let bytes = &tensor.raw_data[0..8];
+                        let value = i64::from_le_bytes([
+                            bytes[0], bytes[1], bytes[2], bytes[3],
+                            bytes[4], bytes[5], bytes[6], bytes[7],
+                        ]);
+                        return Ok(Some(serde_json::json!(value)));
+                    }
+                }
+                x if x == crate::protos::onnx::TensorProto_DataType::Int32 as i32 => {
+                    if !tensor.int32_data.is_empty() {
+                        return Ok(Some(serde_json::json!(tensor.int32_data[0])));
+                    } else if tensor.raw_data.len() >= 4 {
+                        let bytes = &tensor.raw_data[0..4];
+                        let value = i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                        return Ok(Some(serde_json::json!(value)));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // If not found or not a scalar constant, return None
+        Ok(None)
     }
 }
 

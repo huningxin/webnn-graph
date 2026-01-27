@@ -321,8 +321,17 @@ impl ReshapeHandler {
             let total_target: i64 = shape_values.iter().product();
             let mut candidate: Vec<i64> = shape_values.clone();
 
-            // If element counts don't match, repair using available hints.
-            if total_input > 0 && total_target > 0 && total_input != total_target {
+            // IMPORTANT: If shape comes from a constant tensor (shape_from_const=true),
+            // trust it and don't apply repair logic. This preserves correct shapes for
+            // weight matrices like embeddings [vocab_size, hidden_dim].
+            if shape_from_const {
+                crate::debug_println!(
+                    "[reshape] using const shape for {}: {:?} (no repair)",
+                    output_name, shape_values
+                );
+                candidate = shape_values.clone();
+            } else if total_input > 0 && total_target > 0 && total_input != total_target {
+                // Only repair when shape wasn't from a constant and element counts don't match.
                 // Rebuild using batch/seq hints (from known inputs) and hidden from target.
                 let mut batch_hint = input_shape.first().copied().unwrap_or(1);
                 let mut seq_hint = input_shape.get(1).copied().unwrap_or(1);
@@ -619,15 +628,25 @@ impl ReshapeHandler {
             inputs.iter().map(|s| context.resolve_input(s)).collect();
 
         // Normalize negative axis for WebNN unsigned long requirement
-        let normalized_axis = if axis < 0 {
+        let normalized_axis: u32 = if axis < 0 {
             if let Some(shape) = context.value_shapes.get(&inputs[0]) {
                 let rank = shape.len() as i64;
-                rank + axis
+                let result = rank + axis;
+                if result < 0 {
+                    return Err(OnnxError::InvalidShape(format!(
+                        "Concat axis {} is out of bounds for rank {}",
+                        axis, rank
+                    )));
+                }
+                result as u32
             } else {
-                axis // Shape unknown, pass through
+                return Err(OnnxError::InvalidShape(format!(
+                    "Concat has negative axis {} but input shape is unknown",
+                    axis
+                )));
             }
         } else {
-            axis
+            axis as u32
         };
 
         let mut options = Map::new();
@@ -696,24 +715,50 @@ impl ReshapeHandler {
             .collect();
 
         // Normalize negative axis for WebNN unsigned long requirement
-        let normalized_axis = if axis < 0 {
-            if let Some(shape) = context.value_shapes.get(&inputs[0]) {
-                let rank = shape.len() as i64;
-                rank + axis
-            } else {
-                axis // Shape unknown, pass through
+    let normalized_axis: u32 = if axis < 0 {
+        if let Some(shape) = context.value_shapes.get(&inputs[0]) {
+            let rank = shape.len() as i64;
+            let result = rank + axis;
+            if result < 0 {
+                return Err(OnnxError::InvalidShape(format!(
+                    "Split axis {} is out of bounds for rank {}",
+                    axis, rank
+                )));
             }
+            result as u32
         } else {
-            axis
-        };
-
-        let mut options = Map::new();
-        options.insert("axis".to_string(), serde_json::json!(normalized_axis));
-        if let Some(split_values) = splits {
-            options.insert("splits".to_string(), serde_json::json!(split_values));
+            return Err(OnnxError::InvalidShape(format!(
+                "Split has negative axis {} but input shape is unknown",
+                axis
+            )));
         }
+    } else {
+        axis as u32
+    };
 
-        // WebNN split returns multiple outputs
+    // Convert splits to unsigned long (u32) as required by WebNN
+    let splits_u32: Option<Vec<u32>> = splits.map(|s| {
+        s.iter()
+            .map(|&v| {
+                if v < 0 {
+                    // Split sizes must be positive
+                    return Err(OnnxError::InvalidShape(format!(
+                        "Split size {} cannot be negative",
+                        v
+                    )));
+                }
+                Ok(v as u32)
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }).transpose()?;
+
+    let mut options = Map::new();
+    options.insert("axis".to_string(), serde_json::json!(normalized_axis));
+    if let Some(split_values) = splits_u32 {
+        options.insert("splits".to_string(), serde_json::json!(split_values));
+    }
+
+    // WebNN split returns multiple outputs
         let output_node_id = sanitize_identifier(&format!("{}_split", node_name));
         let mut result = ConversionResult::new(vec![Node {
             id: output_node_id,

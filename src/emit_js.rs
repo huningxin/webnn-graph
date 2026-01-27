@@ -259,6 +259,157 @@ pub fn emit_builder_js(g: &GraphJson) -> String {
             }
         }
 
+        // Special handling for dequantizeLinear operation
+        if n.op == "dequantizeLinear" {
+            // WebNN dequantizeLinear: builder.dequantizeLinear(input, scale, zeroPoint, options)
+            // All three parameters (input, scale, zeroPoint) are required by WebNN spec
+            if n.inputs.len() == 3 {
+                let x = &n.inputs[0];
+                let x_scale = &n.inputs[1];
+                let x_zero_point = &n.inputs[2];
+
+                let opts = serde_json::Value::Object(n.options.clone()).to_string();
+                
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.dequantizeLinear(env.get({x:?}), env.get({scale:?}), env.get({zp:?}), {opts}));\n",
+                    id = n.id,
+                    x = x,
+                    scale = x_scale,
+                    zp = x_zero_point,
+                    opts = opts
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for cumulativeSum operation - extract 'axis' as direct parameter
+        if n.op == "cumulativeSum" {
+            let input_ref = &n.inputs[0];
+            if let Some(axis) = n.options.get("axis") {
+                // WebNN cumulativeSum: builder.cumulativeSum(input, axis, options)
+                // axis is a direct parameter, not in options
+                let mut opts = n.options.clone();
+                opts.remove("axis"); // Remove axis from options
+                let opts_str = serde_json::Value::Object(opts).to_string();
+                
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.cumulativeSum(env.get({input:?}), {axis}, {opts}));\n",
+                    id = n.id,
+                    input = input_ref,
+                    axis = axis,
+                    opts = opts_str
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for concat operation
+        // WebNN concat: builder.concat(inputs, axis, options) where axis is direct parameter
+        if n.op == "concat" {
+            if let Some(axis) = n.options.get("axis") {
+                let inputs_str = n
+                    .inputs
+                    .iter()
+                    .map(|x| format!("env.get({:?})", x))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                
+                let mut opts = n.options.clone();
+                opts.remove("axis"); // Remove axis from options
+                let opts_str = serde_json::Value::Object(opts).to_string();
+                
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.concat([{inputs}], {axis}, {opts}));
+",
+                    id = n.id,
+                    inputs = inputs_str,
+                    axis = axis,
+                    opts = opts_str
+                ));
+                continue;
+            }
+        }
+
+        // Special handling for split operation
+        // WebNN split: builder.split(input, splits, options) where splits is direct parameter
+        if n.op == "split" {
+            let input_ref = &n.inputs[0];
+            let splits = n.options.get("splits");
+            let mut opts = n.options.clone();
+            opts.remove("splits"); // Remove splits from options
+            let opts_str = serde_json::Value::Object(opts).to_string();
+            
+            if let Some(splits_value) = splits {
+                // Has explicit splits array
+                if let Some(outputs) = &n.outputs {
+                    // Multi-output split
+                    s.push_str(&format!(
+                        "  {{\n    const tmp = builder.split(env.get({input:?}), {splits}, {opts});\n",
+                        input = input_ref,
+                        splits = splits_value,
+                        opts = opts_str
+                    ));
+                    for (i, out) in outputs.iter().enumerate() {
+                        s.push_str(&format!("    env.set({:?}, tmp[{}]);\n", out, i));
+                    }
+                    s.push_str("  }\n");
+                } else {
+                    // Single output (shouldn't happen for split, but handle it)
+                    s.push_str(&format!(
+                        "  env.set({id:?}, builder.split(env.get({input:?}), {splits}, {opts}));\n",
+                        id = n.id,
+                        input = input_ref,
+                        splits = splits_value,
+                        opts = opts_str
+                    ));
+                }
+            } else {
+                // No explicit splits - WebNN will split evenly based on number of outputs
+                let num_splits = n.outputs.as_ref().map(|o| o.len()).unwrap_or(2);
+                if let Some(outputs) = &n.outputs {
+                    s.push_str(&format!(
+                        "  {{\n    const tmp = builder.split(env.get({input:?}), {num_splits}, {opts});\n",
+                        input = input_ref,
+                        num_splits = num_splits,
+                        opts = opts_str
+                    ));
+                    for (i, out) in outputs.iter().enumerate() {
+                        s.push_str(&format!("    env.set({:?}, tmp[{}]);\n", out, i));
+                    }
+                    s.push_str("  }\n");
+                } else {
+                    s.push_str(&format!(
+                        "  env.set({id:?}, builder.split(env.get({input:?}), {num_splits}, {opts}));\n",
+                        id = n.id,
+                        input = input_ref,
+                        num_splits = num_splits,
+                        opts = opts_str
+                    ));
+                }
+            }
+            continue;
+        }
+
+        // Special handling for expand operation
+        // WebNN expand: builder.expand(input, newShape, options) where newShape is direct parameter
+        if n.op == "expand" {
+            let input_ref = &n.inputs[0];
+            if let Some(new_shape) = n.options.get("newShape") {
+                let mut opts = n.options.clone();
+                opts.remove("newShape"); // Remove newShape from options
+                let opts_str = serde_json::Value::Object(opts).to_string();
+                
+                s.push_str(&format!(
+                    "  env.set({id:?}, builder.expand(env.get({input:?}), {new_shape}, {opts}));\n",
+                    id = n.id,
+                    input = input_ref,
+                    new_shape = new_shape,
+                    opts = opts_str
+                ));
+                continue;
+            }
+        }
+
         // Regular operation handling
         let ins = n
             .inputs

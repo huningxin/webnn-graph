@@ -82,7 +82,7 @@ impl OpHandler for ScatterHandler {
             op: "scatterND".to_string(),
             inputs: vec![data_id, indices_id, updates_id],
             options: Map::new(),
-            outputs: Some(vec![out_id.clone()]),
+            outputs: None, // Single output, not multi-output
         };
 
         let mut res = ConversionResult::new(vec![n]);

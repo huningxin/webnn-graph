@@ -14,7 +14,7 @@ use thiserror::Error;
 use webnn_onnx_utils::{data_types as utils_data_types, identifiers};
 
 const MIN_SUPPORTED_OPSET: i64 = 11;
-const MAX_SUPPORTED_OPSET: i64 = 18;
+const MAX_SUPPORTED_OPSET: i64 = 24;
 
 #[derive(Debug, Error)]
 pub enum OnnxError {
@@ -51,6 +51,18 @@ pub fn sanitize_identifier(name: &str) -> String {
 
 /// Convert ONNX data type code to WebNN DataType using shared utilities
 pub(crate) fn map_onnx_data_type(onnx_type: i32) -> Result<DataType, OnnxError> {
+    // Handle UINT4/INT4 directly (not supported by webnn-onnx-utils yet)
+    if onnx_type == TensorProto_DataType::Uint4 as i32 {
+        return Ok(DataType::Uint4);
+    }
+    if onnx_type == TensorProto_DataType::Int4 as i32 {
+        return Ok(DataType::Int4);
+    }
+    // Handle BOOL (WebNN maps bool to uint8)
+    if onnx_type == TensorProto_DataType::Bool as i32 {
+        return Ok(DataType::Uint8);
+    }
+
     let utils_dtype = utils_data_types::onnx_to_webnn(onnx_type)?;
     Ok(match utils_dtype {
         utils_data_types::DataType::Float32 => DataType::Float32,

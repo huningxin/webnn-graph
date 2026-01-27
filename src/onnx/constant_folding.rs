@@ -16,6 +16,8 @@ pub enum TensorData {
     Float64(Vec<f64>),
     UInt8(Vec<u8>),
     Int8(Vec<i8>),
+    UInt4(Vec<u8>),  // 4-bit unsigned integer [0-15], stored as packed bytes (2 values per byte)
+    Int4(Vec<i8>),   // 4-bit signed integer [-8, 7], stored as packed bytes (2 values per byte)
 }
 
 impl TensorData {
@@ -28,6 +30,8 @@ impl TensorData {
             TensorData::Float64(v) => v.len(),
             TensorData::UInt8(v) => v.len(),
             TensorData::Int8(v) => v.len(),
+            TensorData::UInt4(v) => v.len() * 2, // 2 elements per byte
+            TensorData::Int4(v) => v.len() * 2,  // 2 elements per byte
         }
     }
 
@@ -45,6 +49,8 @@ impl TensorData {
             TensorData::Float64(_) => TensorProto_DataType::Double,
             TensorData::UInt8(_) => TensorProto_DataType::Uint8,
             TensorData::Int8(_) => TensorProto_DataType::Int8,
+            TensorData::UInt4(_) => TensorProto_DataType::Uint4,
+            TensorData::Int4(_) => TensorProto_DataType::Int4,
         }
     }
 
@@ -57,6 +63,8 @@ impl TensorData {
             TensorData::Float64(v) => v.iter().flat_map(|&x| x.to_le_bytes()).collect(),
             TensorData::UInt8(v) => v.clone(),
             TensorData::Int8(v) => v.iter().map(|&x| x as u8).collect(),
+            TensorData::UInt4(v) => v.clone(), // Already packed: 2 values per byte
+            TensorData::Int4(v) => v.iter().map(|&x| x as u8).collect(), // Already packed: 2 values per byte
         }
     }
 
@@ -106,6 +114,18 @@ impl TensorData {
                 x if x == TensorProto_DataType::Int8 as i32 => Ok(TensorData::Int8(
                     raw_data.iter().map(|&x| x as i8).collect(),
                 )),
+                x if x == TensorProto_DataType::Bool as i32 => {
+                    // BOOL: stored as 1 byte per value (0x00 = false, 0x01 = true)
+                    Ok(TensorData::UInt8(raw_data.to_vec()))
+                }
+                x if x == TensorProto_DataType::Uint4 as i32 => {
+                    // UINT4: 2 values packed per byte (LSB = first element, MSB = second element)
+                    Ok(TensorData::UInt4(raw_data.to_vec()))
+                }
+                x if x == TensorProto_DataType::Int4 as i32 => {
+                    // INT4: 2 values packed per byte (LSB = first element, MSB = second element)
+                    Ok(TensorData::Int4(raw_data.iter().map(|&x| x as i8).collect()))
+                }
                 _ => Err(OnnxError::TypeConversion(
                     webnn_onnx_utils::error::ConversionError::UnsupportedOnnxDataType(data_type),
                 )),

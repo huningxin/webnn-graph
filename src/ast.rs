@@ -61,6 +61,7 @@ impl DataType {
             "u64" => Some(Self::Uint64),
             "i8" => Some(Self::Int8),
             "u8" => Some(Self::Uint8),
+            "bool" => Some(Self::Uint8),
             _ => None,
         }
     }
