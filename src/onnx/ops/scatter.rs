@@ -78,7 +78,7 @@ impl OpHandler for ScatterHandler {
         // but this converter currently doesn’t expose scatterND options elsewhere, so we emit
         // the plain call. (If you later add options plumbing, this is where they'd go.)
         let n = Node {
-            id: out_name.clone(),
+            id: out_id.clone(), // Use sanitized identifier for node ID
             op: "scatterND".to_string(),
             inputs: vec![data_id, indices_id, updates_id],
             options: Map::new(),

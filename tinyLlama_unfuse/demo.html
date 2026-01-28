@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebNN all-MiniLM-L6-v2 Demo</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 5px;
+      font-weight: 500;
+    }
+    .status.loading {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+    }
+    .status.success {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+    }
+    .status.error {
+      background: #f8d7da;
+      border-left: 4px solid #dc3545;
+    }
+    .input-section {
+      margin: 20px 0;
+    }
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      font-family: monospace;
+      resize: vertical;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .output {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 20px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .info {
+      background: #e7f3ff;
+      padding: 15px;
+      border-left: 4px solid #2196F3;
+      margin: 15px 0;
+      border-radius: 5px;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>WebNN Demo: all-MiniLM-L6-v2</h1>
+    
+    <div class="info">
+      <strong>Model Information:</strong><br>
+      • Model: sentence-transformers/all-MiniLM-L6-v2<br>
+      • Purpose: Generate semantic embeddings (384 dimensions)<br>
+      • Input: Text sequence (max 128 tokens)<br>
+      • Output: Float32[1, 128, 384] embedding vectors
+    </div>
+
+    <div id="status" class="status loading">
+      Checking WebNN support...
+    </div>
+
+    <div class="input-section">
+      <h3>Test Sentences</h3>
+      <p>Select a sentence to encode (matches Python demo test cases):</p>
+      <select id="sentenceSelect" disabled>
+        <option value="0">This is a sample sentence to encode</option>
+        <option value="1">The cat sits on the mat</option>
+        <option value="2">A feline rests on the carpet</option>
+        <option value="3">The weather is sunny today</option>
+        <option value="4">Python is a programming language</option>
+      </select>
+      <button id="runBtn" disabled>Run Inference</button>
+      <p style="font-size: 12px; color: #666; margin-top: 10px;">
+        Note: Token IDs are pre-computed using transformers tokenizer
+      </p>
+    </div>
+
+    <div id="output" class="output" style="display:none;">
+      <h3>Output Results:</h3>
+      <pre id="result"></pre>
+    </div>
+  </div>
+
+  <script type="module">
+    import { WeightsFile, buildGraph } from './TinyLlama_unfuse.js';
+
+    const statusEl = document.getElementById('status');
+    const runBtn = document.getElementById('runBtn');
+    const outputEl = document.getElementById('output');
+    const resultEl = document.getElementById('result');
+
+    // Mean pooling with attention mask (matches sentence-transformers)
+    function meanPool(tokenEmbeddings, attentionMask, seqLength, hiddenSize) {
+      const result = new Float32Array(hiddenSize);
+      let sumMask = 0;
+      
+      for (let i = 0; i < seqLength; i++) {
+        const mask = Number(attentionMask[i]);
+        sumMask += mask;
+        for (let j = 0; j < hiddenSize; j++) {
+          result[j] += tokenEmbeddings[i * hiddenSize + j] * mask;
+        }
+      }
+      
+      for (let j = 0; j < hiddenSize; j++) {
+        result[j] /= Math.max(sumMask, 1e-9);
+      }
+      return result;
+    }
+
+    // L2 normalization
+    function l2Normalize(vector) {
+      const norm = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+      return vector.map(val => val / Math.max(norm, 1e-9));
+    }
+
+    // Pre-computed token IDs for test sentences (using transformers tokenizer)
+    // Each entry: [token_ids, attention_mask, token_type_ids, sentence_text]
+    const TEST_SENTENCES = [
+      {
+        text: "This is a sample sentence to encode",
+        input_ids: [101, 2023, 2003, 1037, 7099, 6251, 2000, 4372, 16044, 102],
+        attention_mask: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        length: 10
+      },
+      {
+        text: "The cat sits on the mat",
+        input_ids: [101, 1996, 4937, 7719, 2006, 1996, 13523, 102],
+        attention_mask: [1, 1, 1, 1, 1, 1, 1, 1],
+        length: 8
+      },
+      {
+        text: "A feline rests on the carpet",
+        input_ids: [101, 1037, 10768, 9340, 16626, 2006, 1996, 10135, 102],
+        attention_mask: [1, 1, 1, 1, 1, 1, 1, 1, 1],
+        length: 9
+      },
+      {
+        text: "The weather is sunny today",
+        input_ids: [101, 1996, 4633, 2003, 11052, 2651, 102],
+        attention_mask: [1, 1, 1, 1, 1, 1, 1],
+        length: 7
+      },
+      {
+        text: "Python is a programming language",
+        input_ids: [101, 18750, 2003, 1037, 4730, 2653, 102],
+        attention_mask: [1, 1, 1, 1, 1, 1, 1],
+        length: 7
+      }
+    ];
+
+    let mlContext = null;
+    let mlGraph = null;
+    let weights = null;
+
+    // Check WebNN support
+    async function checkWebNN() {
+      if (!('ml' in navigator)) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'Your browser does not support WebNN API. Please use Chrome 113+ or Edge 113+';
+        return false;
+      }
+      
+      try {
+        mlContext = await navigator.ml.createContext();
+        statusEl.className = 'status success';
+        statusEl.textContent = 'WebNN is ready!';
+        return true;
+      } catch (e) {
+        statusEl.className = 'status error';
+        statusEl.textContent = `WebNN initialization failed: ${e.message}`;
+        return false;
+      }
+    }
+
+    // Load model (skip magic header validation)
+    async function loadModel() {
+      statusEl.className = 'status loading';
+      statusEl.textContent = 'Loading model weights...';
+      
+      try {
+        // Manually load weights file (skip magic header check)
+        const [weightsResponse, manifestResponse] = await Promise.all([
+          fetch('./TinyLlama_unfuse.weights'),
+          fetch('./TinyLlama_unfuse.manifest.json')
+        ]);
+
+        if (!weightsResponse.ok) {
+          throw new Error(`Failed to load weights: ${weightsResponse.statusText}`);
+        }
+        if (!manifestResponse.ok) {
+          throw new Error(`Failed to load manifest: ${manifestResponse.statusText}`);
+        }
+
+        const buffer = await weightsResponse.arrayBuffer();
+        const manifest = await manifestResponse.json();
+
+        // Create custom WeightsFile object (bypass validation)
+        weights = {
+          buffer: buffer,
+          manifest: manifest,
+          getSlice(name) {
+            const tensor = this.manifest.tensors[name];
+            if (!tensor) {
+              throw new Error(`Tensor not found in manifest: ${name}`);
+            }
+            return tensor;
+          }
+        };
+        
+        statusEl.textContent = 'Building computation graph...';
+        
+        // Build WebNN graph
+        mlGraph = await buildGraph(mlContext, weights);
+        
+        statusEl.className = 'status success';
+        statusEl.textContent = 'Model loaded successfully!';
+        runBtn.disabled = false;
+        document.getElementById('sentenceSelect').disabled = false;
+        
+      } catch (e) {
+        statusEl.className = 'status error';
+        statusEl.textContent = `Model loading failed: ${e.message}`;
+        console.error('Loading error:', e);
+        console.error('Stack trace:', e.stack);
+      }
+    }
+
+    // Run inference
+    async function runInference() {
+      if (!mlGraph) return;
+      
+      runBtn.disabled = true;
+      statusEl.className = 'status loading';
+      statusEl.textContent = 'Running inference...';
+
+      window.MLTensorUsage = {WEBGPU_INTEROP: 1, READ: 2, WRITE: 4};
+      
+      try {
+        // Get selected sentence
+        const sentenceIdx = parseInt(document.getElementById('sentenceSelect').value);
+        const sentence = TEST_SENTENCES[sentenceIdx];
+        const seqLength = 128;
+        
+        // Prepare input data with real token IDs
+        const inputIdsData = new BigInt64Array(seqLength);
+        const attentionMaskData = new BigInt64Array(seqLength);
+        const tokenTypeIdsData = new BigInt64Array(seqLength);
+        
+        // Fill with actual token IDs
+        for (let i = 0; i < sentence.input_ids.length; i++) {
+          inputIdsData[i] = BigInt(sentence.input_ids[i]);
+          attentionMaskData[i] = BigInt(sentence.attention_mask[i]);
+          tokenTypeIdsData[i] = 0n;  // Single sentence, all zeros
+        }
+        // Rest are 0 (PAD)
+        
+        // Create input tensors (WebNN dispatch API)
+        const inputIdsDesc = {
+          dataType: 'int64',
+          shape: [1, seqLength],
+          usage: MLTensorUsage.WRITE,
+          writable: true
+        };
+        const attentionMaskDesc = {
+          dataType: 'int64',
+          shape: [1, seqLength],
+          usage: MLTensorUsage.WRITE,
+          writable: true
+        };
+        const tokenTypeIdsDesc = {
+          dataType: 'int64',
+          shape: [1, seqLength],
+          usage: MLTensorUsage.WRITE,
+          writable: true
+        };
+        
+        const inputIdsTensor = await mlContext.createTensor(inputIdsDesc);
+        const attentionMaskTensor = await mlContext.createTensor(attentionMaskDesc);
+        const tokenTypeIdsTensor = await mlContext.createTensor(tokenTypeIdsDesc);
+        
+        // Write data to tensors
+        mlContext.writeTensor(inputIdsTensor, inputIdsData);
+        mlContext.writeTensor(attentionMaskTensor, attentionMaskData);
+        mlContext.writeTensor(tokenTypeIdsTensor, tokenTypeIdsData);
+        
+        // Create output tensor
+        const outputDesc = {
+          dataType: 'float32',
+          shape: [1, seqLength, 384],
+          usage: MLTensorUsage.READ,
+          readable: true
+        };
+        const outputTensor = await mlContext.createTensor(outputDesc);
+        
+        // Execute inference (using dispatch instead of compute)
+        const startTime = performance.now();
+        mlContext.dispatch(mlGraph, 
+          {
+            input_ids: inputIdsTensor,
+            attention_mask: attentionMaskTensor,
+            token_type_ids: tokenTypeIdsTensor
+          },
+          {
+            last_hidden_state: outputTensor
+          }
+        );
+        
+        // Read output results
+        const resultBuffer = await mlContext.readTensor(outputTensor);
+        const endTime = performance.now();
+        
+        // Convert to Float32Array
+        const lastHiddenState = new Float32Array(resultBuffer);
+        
+        // Step 1: Mean pooling with attention mask
+        const pooled = meanPool(lastHiddenState, attentionMaskData, seqLength, 384);
+        
+        // Step 2: L2 normalization
+        const sentenceEmbedding = l2Normalize(Array.from(pooled));
+        
+        // Calculate L2 norm (should be 1.0 after normalization)
+        const l2Norm = Math.sqrt(
+          sentenceEmbedding.reduce((sum, v) => sum + v * v, 0)
+        );
+        
+        // Display results
+        outputEl.style.display = 'block';
+        resultEl.textContent = `
+Inference completed!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Inference time: ${(endTime - startTime).toFixed(2)} ms
+
+Input Sentence:
+   "${sentence.text}"
+   Tokens: ${sentence.length}
+
+Processing Pipeline:
+   1. Token embeddings: [1, 128, 384] → ${lastHiddenState.length} Float32 values
+   2. Mean pooling (attention-masked)
+   3. L2 normalization
+   → Final sentence embedding: [384] dimensions
+
+Sentence Embedding (first 10 dimensions):
+${sentenceEmbedding.slice(0, 10).map((v, i) => 
+  `   [${i}] = ${v.toFixed(8)}`
+).join('\n')}
+
+L2 Norm: ${l2Norm.toFixed(6)} ${l2Norm > 0.999 && l2Norm < 1.001 ? '✓' : '✗'}
+
+Compare with Python Demo:
+• Run the same sentence in Python demo to compare embeddings:
+https://github.com/rustnn/rustnn/blob/v0.5.2/examples/minilm_embeddings.py
+
+• Use for semantic similarity: cosine = dot(emb1, emb2)
+  (both embeddings must be L2-normalized)
+        `.trim();
+        
+        statusEl.className = 'status success';
+        statusEl.textContent = `Inference completed! Time: ${(endTime - startTime).toFixed(2)}ms`;
+        
+      } catch (e) {
+        statusEl.className = 'status error';
+        statusEl.textContent = `Inference failed: ${e.message}`;
+        console.error('Inference error:', e);
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    // Initialize
+    async function init() {
+      const supported = await checkWebNN();
+      if (supported) {
+        await loadModel();
+      }
+    }
+
+    runBtn.addEventListener('click', runInference);
+    init();
+  </script>
+</body>
+</html>
