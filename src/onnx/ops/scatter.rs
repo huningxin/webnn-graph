@@ -2,7 +2,6 @@ use crate::ast::Node;
 use crate::onnx::convert::OnnxError;
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct ScatterHandler;
 
@@ -33,6 +32,12 @@ impl OpHandler for ScatterHandler {
         node: &NodeProto,
         context: &ConversionContext<'a>,
     ) -> Result<ConversionResult, OnnxError> {
+        let node_name = if !node.name.is_empty() {
+            node.name.as_str().to_string()
+        } else {
+            "unnamed".to_string()
+        };
+
         // ONNX ScatterND inputs: data, indices, updates
         // WebNN scatterND(input, indices, updates)
         //
@@ -41,11 +46,6 @@ impl OpHandler for ScatterHandler {
         let reduction =
             Self::get_string_attr(node, "reduction").unwrap_or_else(|| "none".to_string());
         if reduction != "none" {
-            let node_name = if !node.name.is_empty() {
-                node.name.as_str().to_string()
-            } else {
-                "".to_string()
-            };
             return Err(OnnxError::UnsupportedOp {
                 op: format!("ScatterND(reduction={})", reduction),
                 node: node_name,
@@ -81,7 +81,7 @@ impl OpHandler for ScatterHandler {
             id: out_id.clone(), // Use sanitized identifier for node ID
             op: "scatterND".to_string(),
             inputs: vec![data_id, indices_id, updates_id],
-            options: Map::new(),
+            options: crate::onnx::ops::create_options_with_label(&node_name),
             outputs: None, // Single output, not multi-output
         };
 

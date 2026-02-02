@@ -146,6 +146,15 @@ impl OpRegistry {
     }
 }
 
+/// Helper function to create options with a label from the ONNX node name
+pub fn create_options_with_label(node_name: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut options = serde_json::Map::new();
+    if !node_name.is_empty() && node_name != "unnamed" {
+        options.insert("label".to_string(), serde_json::Value::String(node_name.to_string()));
+    }
+    options
+}
+
 impl Default for OpRegistry {
     fn default() -> Self {
         Self::new()

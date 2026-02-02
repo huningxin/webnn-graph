@@ -4,7 +4,6 @@ use crate::ast::Node;
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct NormalizationHandler;
 
@@ -77,7 +76,7 @@ impl NormalizationHandler {
             sanitize_identifier(&node.output.as_slice()[0].to_string())
         };
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("epsilon".to_string(), serde_json::json!(epsilon));
 
         // WebNN layerNormalization uses axes parameter (array)
@@ -162,7 +161,7 @@ impl NormalizationHandler {
 
         let input0 = context.resolve_input(&inputs[0]);
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         // WebNN softmax uses axis parameter (single value)
         // Normalize negative axis to positive index
         let normalized_axis = if axis < 0 {

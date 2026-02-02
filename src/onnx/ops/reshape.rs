@@ -4,7 +4,6 @@ use crate::ast::Node;
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::{NodeProto, TensorProto_DataType};
-use serde_json::Map;
 
 pub struct ReshapeHandler;
 
@@ -371,7 +370,7 @@ impl ReshapeHandler {
             );
         }
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("newShape".to_string(), serde_json::json!(shape_values));
 
         let mut result = ConversionResult::new(vec![Node {
@@ -514,7 +513,7 @@ impl ReshapeHandler {
             "expand"
         };
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert(
             "newShape".to_string(),
             serde_json::json!(shape_values.iter().map(|v| *v as u32).collect::<Vec<_>>()),
@@ -573,7 +572,7 @@ impl ReshapeHandler {
 
         let input0 = context.resolve_input(&inputs[0]);
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         if let Some(perm_values) = perm {
             options.insert("permutation".to_string(), serde_json::json!(perm_values));
         }
@@ -649,7 +648,7 @@ impl ReshapeHandler {
             axis as u32
         };
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("axis".to_string(), serde_json::json!(normalized_axis));
 
         let mut result = ConversionResult::new(vec![Node {
@@ -752,7 +751,7 @@ impl ReshapeHandler {
             .collect::<Result<Vec<_>, _>>()
     }).transpose()?;
 
-    let mut options = Map::new();
+    let mut options = crate::onnx::ops::create_options_with_label(&node_name);
     options.insert("axis".to_string(), serde_json::json!(normalized_axis));
     if let Some(split_values) = splits_u32 {
         options.insert("splits".to_string(), serde_json::json!(split_values));
@@ -879,7 +878,7 @@ impl ReshapeHandler {
         }
 
         // Convert to WebNN reshape operation (WebNN doesn't have unsqueeze)
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert(
             "newShape".to_string(),
             serde_json::json!(new_shape.iter().map(|&v| v as u32).collect::<Vec<_>>()),
@@ -939,7 +938,7 @@ impl ReshapeHandler {
             self.read_axes_from_attr_or_const(node, context)?
         };
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("axes".to_string(), serde_json::json!(axes_values));
 
         // WebNN doesn't have squeeze, so we'll use reshape with axes parameter.
@@ -1031,7 +1030,7 @@ impl ReshapeHandler {
             ));
         };
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("repetitions".to_string(), serde_json::json!(repeats));
 
         let mut result = ConversionResult::new(vec![Node {

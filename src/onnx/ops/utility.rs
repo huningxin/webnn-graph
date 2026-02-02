@@ -246,7 +246,7 @@ impl UtilityHandler {
 
         let input0 = context.resolve_input(&inputs[0]);
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("upper".to_string(), json!(upper));
         options.insert("k".to_string(), json!(k));
 
@@ -435,7 +435,7 @@ impl UtilityHandler {
             }
         }
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert("axis".to_string(), serde_json::json!(resolved_axis));
 
         // Propagate output shape metadata when available so downstream ops see correct ranks
@@ -530,7 +530,7 @@ impl UtilityHandler {
             None
         };
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
 
         // In opset >= 10, starts/ends/axes/steps are inputs
         // WebNN requires static values, so we enforce const-ness here.

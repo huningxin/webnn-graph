@@ -4,7 +4,6 @@ use crate::ast::{DataType, Node};
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct ComparisonHandler;
 
@@ -66,7 +65,7 @@ impl OpHandler for ComparisonHandler {
             id: output_name.clone(),
             op: webnn_op.to_string(),
             inputs: vec![input0, input1],
-            options: Map::new(),
+            options: crate::onnx::ops::create_options_with_label(&node_name),
             outputs: None,
         }]);
 

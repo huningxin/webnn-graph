@@ -4,7 +4,6 @@ use crate::ast::Node;
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct ActivationHandler;
 
@@ -97,7 +96,7 @@ impl ActivationHandler {
 
         let input0 = context.resolve_input(&inputs[0]);
 
-        let options = Map::new();
+        let options = crate::onnx::ops::create_options_with_label(&node_name);
 
         let mut result = ConversionResult::new(vec![Node {
             id: output_name.clone(),
@@ -141,7 +140,7 @@ impl ActivationHandler {
 
         let input0 = context.resolve_input(&inputs[0]);
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
 
         // Extract min value (second input if present)
         if inputs.len() >= 2 && !inputs[1].is_empty() {

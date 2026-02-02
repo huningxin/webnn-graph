@@ -4,7 +4,6 @@ use crate::ast::Node;
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct ConversionHandler;
 
@@ -83,7 +82,7 @@ impl ConversionHandler {
         // WebNN cast expects lowercase type name as direct parameter
         let target_type_str = format!("{:?}", target_type).to_lowercase();
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert(
             "to".to_string(),
             serde_json::json!(target_type_str),
@@ -144,7 +143,7 @@ impl ConversionHandler {
         // WebNN expects lowercase type names
         let data_type_str = format!("{:?}", data_type).to_lowercase();
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         options.insert(
             "dataType".to_string(),
             serde_json::json!(data_type_str),
@@ -222,7 +221,7 @@ impl ConversionHandler {
                 "int8".to_string() // Default to int8 for quantized inputs
             };
             
-            let mut zero_options = Map::new();
+            let mut zero_options = crate::onnx::ops::create_options_with_label(&format!("{}_zero_point", node_name));
             zero_options.insert("dataType".to_string(), serde_json::json!(zero_dtype));
             zero_options.insert("shape".to_string(), serde_json::json!(zero_shape));
             zero_options.insert("value".to_string(), serde_json::json!(0));
@@ -258,7 +257,7 @@ impl ConversionHandler {
             }
         }
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         
         // Add axis if not default
         if axis != 1 {

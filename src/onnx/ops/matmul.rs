@@ -4,7 +4,6 @@ use crate::ast::{ConstDecl, ConstInit, DataType, Node};
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct MatMulHandler;
 
@@ -66,7 +65,7 @@ impl MatMulHandler {
             id: output_name.clone(),
             op: "matmul".to_string(),
             inputs: vec![input0, input1],
-            options: Map::new(),
+            options: crate::onnx::ops::create_options_with_label(&node_name),
             outputs: None,
         }]);
 
@@ -180,7 +179,7 @@ impl MatMulHandler {
                 op: "transpose".to_string(),
                 inputs: vec![input0.clone()],
                 options: {
-                    let mut opts = Map::new();
+                    let mut opts = crate::onnx::ops::create_options_with_label(&format!("{}_transposeA", node_name));
                     opts.insert("permutation".to_string(), serde_json::json!(perm));
                     opts
                 },
@@ -200,7 +199,7 @@ impl MatMulHandler {
                 op: "transpose".to_string(),
                 inputs: vec![input1.clone()],
                 options: {
-                    let mut opts = Map::new();
+                    let mut opts = crate::onnx::ops::create_options_with_label(&format!("{}_transposeB", node_name));
                     opts.insert("permutation".to_string(), serde_json::json!(perm));
                     opts
                 },
@@ -216,7 +215,7 @@ impl MatMulHandler {
             id: current_result.clone(),
             op: "matmul".to_string(),
             inputs: vec![input_a, input_b],
-            options: Map::new(),
+            options: crate::onnx::ops::create_options_with_label(&node_name),
             outputs: None,
         });
 
@@ -238,7 +237,7 @@ impl MatMulHandler {
                 id: scaled.clone(),
                 op: "mul".to_string(),
                 inputs: vec![current_result.clone(), alpha_const_id],
-                options: Map::new(),
+                options: crate::onnx::ops::create_options_with_label(&format!("{}_scaled", node_name)),
                 outputs: None,
             });
             current_result = scaled;
@@ -264,7 +263,7 @@ impl MatMulHandler {
                     id: scaled_c.clone(),
                     op: "mul".to_string(),
                     inputs: vec![input2.clone(), beta_const_id],
-                    options: Map::new(),
+                    options: crate::onnx::ops::create_options_with_label(&format!("{}_scaled_c", node_name)),
                     outputs: None,
                 });
                 scaled_c
@@ -277,7 +276,7 @@ impl MatMulHandler {
                 id: output_name.clone(),
                 op: "add".to_string(),
                 inputs: vec![current_result, bias_input],
-                options: Map::new(),
+                options: crate::onnx::ops::create_options_with_label(&node_name),
                 outputs: None,
             });
         } else {

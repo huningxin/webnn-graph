@@ -4,7 +4,6 @@ use crate::ast::Node;
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct ReductionHandler;
 
@@ -85,7 +84,7 @@ impl ReductionHandler {
 
         let input0 = context.resolve_input(&inputs[0]);
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
 
         // Add axes if specified, normalizing negative indices
         if let Some(axes_values) = axes {
@@ -170,7 +169,7 @@ impl ReductionHandler {
             }
         }
 
-        let mut options = Map::new();
+        let mut options = crate::onnx::ops::create_options_with_label(&node_name);
         if exclusive {
             options.insert("exclusive".to_string(), serde_json::json!(true));
         }

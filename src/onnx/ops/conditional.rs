@@ -4,7 +4,6 @@ use crate::ast::Node;
 use crate::onnx::convert::{sanitize_identifier, OnnxError};
 use crate::onnx::ops::{ConversionContext, ConversionResult, OpHandler};
 use crate::protos::onnx::NodeProto;
-use serde_json::Map;
 
 pub struct ConditionalHandler;
 
@@ -49,7 +48,7 @@ impl OpHandler for ConditionalHandler {
             id: output_name.clone(),
             op: "where".to_string(),
             inputs: vec![condition, true_value, false_value],
-            options: Map::new(),
+            options: crate::onnx::ops::create_options_with_label(&node_name),
             outputs: None,
         }]);
 
