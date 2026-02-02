@@ -76,6 +76,40 @@ impl ReductionHandler {
             }
         }
 
+        // In opset >= 18, axes can be a second input (initializer)
+        if axes.is_none() && inputs.len() >= 2 {
+            let axes_input = &inputs[1];
+            // Try to read from initializers
+            if let Some(tensor) = context.initializers.get(axes_input) {
+                let raw = tensor.raw_data.as_slice();
+                if !raw.is_empty() {
+                    if tensor.data_type == crate::protos::onnx::TensorProto_DataType::Int64 as i32 {
+                        axes = Some(
+                            raw.chunks_exact(8)
+                                .map(|c| i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
+                                .collect()
+                        );
+                    } else if tensor.data_type == crate::protos::onnx::TensorProto_DataType::Int32 as i32 {
+                        axes = Some(
+                            raw.chunks_exact(4)
+                                .map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]]) as i64)
+                                .collect()
+                        );
+                    }
+                } else if !tensor.int64_data.as_slice().is_empty() {
+                    axes = Some(tensor.int64_data.as_slice().to_vec());
+                } else if !tensor.int32_data.as_slice().is_empty() {
+                    axes = Some(tensor.int32_data.as_slice().iter().map(|&v| v as i64).collect());
+                }
+            }
+            // Try to read from const_values (from constant folding)
+            if axes.is_none() {
+                if let Some(values) = context.const_values.get(axes_input) {
+                    axes = Some(values.clone());
+                }
+            }
+        }
+
         let output_name = if node.output.as_slice().is_empty() {
             format!("{}_output", node_name)
         } else {
