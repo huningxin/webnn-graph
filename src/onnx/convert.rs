@@ -14,7 +14,7 @@ use thiserror::Error;
 use webnn_onnx_utils::{data_types as utils_data_types, identifiers};
 
 const MIN_SUPPORTED_OPSET: i64 = 11;
-const MAX_SUPPORTED_OPSET: i64 = 24;
+const MAX_SUPPORTED_OPSET: i64 = 25;
 
 #[derive(Debug, Error)]
 pub enum OnnxError {

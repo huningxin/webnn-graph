@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TinyLlama Static Model Prefill Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        label {
+            display: block;
+            margin: 15px 0 8px 0;
+            font-weight: 600;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+            font-family: 'Courier New', monospace;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 10px 0 0;
+        }
+        button:hover { background: #0052a3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            background: #e3f2fd;
+            color: #1565c0;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.error { background: #ffebee; color: #c62828; }
+        .status.success { background: #e8f5e9; color: #2e7d32; }
+        .output {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #0066cc;
+            display: none;
+        }
+        .output.show { display: block; }
+        .result {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+        }
+        .correct { color: #2e7d32; }
+        .wrong { color: #c62828; }
+        .metrics {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            font-size: 14px;
+        }
+        .metric { margin: 5px 0; color: #666; }
+        #log {
+            margin-top: 20px;
+            padding: 15px;
+            background: #263238;
+            color: #aed581;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TinyLlama 1.1B Chat v1.0 Static Model Prefill</h1>
+        <div class="subtitle">
+            Using Prefill_model_static.js (sequence_length=128, past_sequence_length=512)<br>
+        </div>
+
+        <label>Input Token IDs (comma-separated, max 128 tokens):</label>
+        <input type="text" id="tokenInput" 
+               value="529, 29989, 5205, 29989, 29958, 13, 3492, 526, 263, 19780, 13563, 7451, 1058, 2337, 10049, 29879, 297, 278, 3114, 310, 263, 21625, 403, 2, 13, 29966, 29989, 1792, 29989, 29958, 13, 5618, 338, 29871, 29896, 718, 29871, 29896, 29973, 2, 13, 29966, 29989, 465, 22137, 29989, 29958, 13"
+               placeholder="e.g., 1, 15043, 29892, 920">
+        <small style="color: #888; display: block; margin-top: 5px;">
+            Example: "What is 1 + 1?" = 48 tokens (include system prompt)<br>
+            Static model pads to 128 tokens automatically<br>
+            First result is 29896
+        </small>
+
+        <button id="loadBtn">Load Model</button>
+        <button id="runBtn" disabled>Run Prefill</button>
+
+        <div id="status" class="status"></div>
+
+        <div id="output" class="output">
+            <div class="result" id="result"></div>
+            <div class="metrics">
+                <div class="metric"><strong>Prefill Time:</strong> <span id="prefillTime">-</span></div>
+                <div class="metric"><strong>Input Length:</strong> <span id="inputLength">-</span> tokens</div>
+                <div class="metric"><strong>Top 5 Predictions:</strong> <span id="top5">-</span></div>
+            </div>
+        </div>
+
+        <div id="log"></div>
+    </div>
+
+    <script type="module">
+        import { buildGraph } from './Prefill_model_static.js';
+
+        // Static model configuration (fixed shapes)
+        const config = {
+            seqLen: 128,          // sequence_length
+            pastSeqLen: 512,      // past_sequence_length
+            numLayers: 22,
+            kvNumHeads: 4,
+            headSize: 64,
+            vocabSize: 32000,
+        };
+
+        let context = null;
+        let graph = null;
+        let weights = null;
+
+        const elements = {
+            loadBtn: document.getElementById('loadBtn'),
+            runBtn: document.getElementById('runBtn'),
+            status: document.getElementById('status'),
+            output: document.getElementById('output'),
+            tokenInput: document.getElementById('tokenInput'),
+            result: document.getElementById('result'),
+            prefillTime: document.getElementById('prefillTime'),
+            inputLength: document.getElementById('inputLength'),
+            top5: document.getElementById('top5'),
+            log: document.getElementById('log'),
+        };
+
+        function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            elements.log.textContent += `[${time}] ${msg}\n`;
+            elements.log.scrollTop = elements.log.scrollHeight;
+            console.log(msg);
+        }
+
+        function showStatus(msg, type = 'info') {
+            elements.status.textContent = msg;
+            elements.status.className = 'status show';
+            if (type === 'error') elements.status.classList.add('error');
+            if (type === 'success') elements.status.classList.add('success');
+        }
+
+        // Float16 to Float32 conversion
+        function float16ToFloat32(h) {
+            const sign = (h & 0x8000) >> 15;
+            const exp = (h & 0x7C00) >> 10;
+            const frac = h & 0x03FF;
+            
+            if (exp === 0) {
+                return (sign ? -1 : 1) * Math.pow(2, -14) * (frac / 1024);
+            } else if (exp === 31) {
+                return frac ? NaN : (sign ? -Infinity : Infinity);
+            } else {
+                return (sign ? -1 : 1) * Math.pow(2, exp - 15) * (1 + frac / 1024);
+            }
+        }
+
+        function argmax(arr) {
+            let maxIdx = 0;
+            let maxVal = arr[0];
+            for (let i = 1; i < arr.length; i++) {
+                if (arr[i] > maxVal) {
+                    maxVal = arr[i];
+                    maxIdx = i;
+                }
+            }
+            return { index: maxIdx, value: maxVal };
+        }
+
+        // Load model
+        elements.loadBtn.addEventListener('click', async () => {
+            try {
+                elements.loadBtn.disabled = true;
+                elements.log.textContent = '';
+                log('Starting model load...');
+                
+                if (!navigator.ml) {
+                    throw new Error('WebNN not supported in this browser');
+                }
+
+                showStatus('Creating WebNN context...');
+                context = await navigator.ml.createContext({ deviceType: 'gpu' });
+                log('WebNN context created (GPU)');
+
+                showStatus('Loading weights...');
+                // Manually load weights file (skip magic header check, like demo.html)
+                const [weightsResponse, manifestResponse] = await Promise.all([
+                    fetch('./Prefill_model.weights'),
+                    fetch('./Prefill_model.manifest.json')
+                ]);
+
+                if (!weightsResponse.ok) {
+                    throw new Error(`Failed to load weights: ${weightsResponse.statusText}`);
+                }
+                if (!manifestResponse.ok) {
+                    throw new Error(`Failed to load manifest: ${manifestResponse.statusText}`);
+                }
+
+                const buffer = await weightsResponse.arrayBuffer();
+                const manifest = await manifestResponse.json();
+
+                // Create custom WeightsFile object (bypass validation)
+                weights = {
+                    buffer: buffer,
+                    manifest: manifest,
+                    getSlice(name) {
+                        const tensor = this.manifest.tensors[name];
+                        if (!tensor) {
+                            throw new Error(`Tensor not found in manifest: ${name}`);
+                        }
+                        return tensor;
+                    }
+                };
+                log(`Weights loaded: ${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+
+                showStatus('Building graph (30-60s)...');
+                const buildStart = performance.now();
+                graph = await buildGraph(context, weights);
+                const buildTime = performance.now() - buildStart;
+                log(`Graph built in ${(buildTime / 1000).toFixed(1)}s`);
+
+                elements.runBtn.disabled = false;
+                showStatus('Model ready!', 'success');
+
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                log(`ERROR: ${error.message}`);
+                console.error(error);
+                elements.loadBtn.disabled = false;
+            }
+        });
+
+        // Run prefill
+        elements.runBtn.addEventListener('click', async () => {
+            try {
+                elements.runBtn.disabled = true;
+                elements.output.classList.remove('show');
+                showStatus('Running prefill...');
+
+                // Parse input tokens
+                const input = elements.tokenInput.value.trim();
+                let tokens = input.split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t));
+                
+                if (tokens.length === 0) {
+                    throw new Error('No valid tokens provided');
+                }
+                if (tokens.length > config.seqLen) {
+                    tokens = tokens.slice(0, config.seqLen);
+                    log(`Truncated to ${config.seqLen} tokens`);
+                }
+
+                const actualLen = tokens.length;
+                log(`\nInput: ${actualLen} tokens [${tokens.slice(0, 5).join(', ')}...]`);
+
+                // Pad to fixed sequence length (128)
+                const paddedTokens = [...tokens, ...Array(config.seqLen - actualLen).fill(0)];                  // [x, x, x, 0, 0, 0 ...]
+                const paddedMask = [...Array(actualLen).fill(1), ...Array(config.seqLen - actualLen).fill(0)];  // [1, 1, 1, 0, 0, 0 ...]
+                const paddedPosIds = [...Array(actualLen).keys(), ...Array(config.seqLen - actualLen).fill(0)]; // [0, 1, 2, 0, 0, 0 ...]
+
+                log(`Padded to ${config.seqLen} tokens for static model`);
+
+                // MLTensorUsage flags
+                const Usage = { WEBGPU_INTEROP: 1, READ: 2, WRITE: 4 };
+
+                // === Create Input Tensors ===
+                // Main inputs: input_ids_580, attention_mask_596, position_ids_625
+                const inputIdsTensor = await context.createTensor({
+                    dataType: 'int64', shape: [1, config.seqLen],
+                    usage: Usage.WRITE, writable: true
+                });
+                context.writeTensor(inputIdsTensor, new BigInt64Array(paddedTokens.map(t => BigInt(t))));
+
+                const attentionMaskTensor = await context.createTensor({
+                    dataType: 'int64', shape: [1, config.seqLen],
+                    usage: Usage.WRITE, writable: true
+                });
+                context.writeTensor(attentionMaskTensor, new BigInt64Array(paddedMask.map(t => BigInt(t))));
+
+                const positionIdsTensor = await context.createTensor({
+                    dataType: 'int64', shape: [1, config.seqLen],
+                    usage: Usage.WRITE, writable: true
+                });
+                context.writeTensor(positionIdsTensor, new BigInt64Array(paddedPosIds.map(t => BigInt(t))));
+
+                // KV cache inputs (all zeros for prefill)
+                const kvNames = [
+                    ['past_key_values_0_key_652', 'past_key_values_0_value_609'],
+                    ['past_key_values_1_key_771', 'past_key_values_1_value_735'],
+                    ['past_key_values_2_key_890', 'past_key_values_2_value_854'],
+                    ['past_key_values_3_key_1009', 'past_key_values_3_value_973'],
+                    ['past_key_values_4_key_1128', 'past_key_values_4_value_1092'],
+                    ['past_key_values_5_key_1247', 'past_key_values_5_value_1211'],
+                    ['past_key_values_6_key_1366', 'past_key_values_6_value_1330'],
+                    ['past_key_values_7_key_1485', 'past_key_values_7_value_1449'],
+                    ['past_key_values_8_key_1604', 'past_key_values_8_value_1568'],
+                    ['past_key_values_9_key_1723', 'past_key_values_9_value_1687'],
+                    ['past_key_values_10_key_1842', 'past_key_values_10_value_1806'],
+                    ['past_key_values_11_key_1961', 'past_key_values_11_value_1925'],
+                    ['past_key_values_12_key_2080', 'past_key_values_12_value_2044'],
+                    ['past_key_values_13_key_2199', 'past_key_values_13_value_2163'],
+                    ['past_key_values_14_key_2318', 'past_key_values_14_value_2282'],
+                    ['past_key_values_15_key_2437', 'past_key_values_15_value_2401'],
+                    ['past_key_values_16_key_2556', 'past_key_values_16_value_2520'],
+                    ['past_key_values_17_key_2675', 'past_key_values_17_value_2639'],
+                    ['past_key_values_18_key_2794', 'past_key_values_18_value_2758'],
+                    ['past_key_values_19_key_2913', 'past_key_values_19_value_2877'],
+                    ['past_key_values_20_key_3032', 'past_key_values_20_value_2996'],
+                    ['past_key_values_21_key_3151', 'past_key_values_21_value_3115']
+                ];
+
+                const emptyKV = new Uint16Array(1 * config.kvNumHeads * config.pastSeqLen * config.headSize).fill(0);
+                const kvInputs = {};
+                
+                for (const [keyName, valueName] of kvNames) {
+                    const keyTensor = await context.createTensor({
+                        dataType: 'float16', shape: [1, config.kvNumHeads, config.pastSeqLen, config.headSize],
+                        usage: Usage.WRITE, writable: true
+                    });
+                    context.writeTensor(keyTensor, emptyKV);
+                    kvInputs[keyName] = keyTensor;
+                    
+                    const valueTensor = await context.createTensor({
+                        dataType: 'float16', shape: [1, config.kvNumHeads, config.pastSeqLen, config.headSize],
+                        usage: Usage.WRITE, writable: true
+                    });
+                    context.writeTensor(valueTensor, emptyKV);
+                    kvInputs[valueName] = valueTensor;
+                }
+                log(`Created ${Object.keys(kvInputs).length} KV cache tensors`);
+
+                // === Create Output Tensors ===
+                const presentNames = [
+                    ['present_0_key_0', 'present_0_value_1'],
+                    ['present_1_key_2', 'present_1_value_3'],
+                    ['present_2_key_4', 'present_2_value_5'],
+                    ['present_3_key_6', 'present_3_value_7'],
+                    ['present_4_key_8', 'present_4_value_9'],
+                    ['present_5_key_10', 'present_5_value_11'],
+                    ['present_6_key_12', 'present_6_value_13'],
+                    ['present_7_key_14', 'present_7_value_15'],
+                    ['present_8_key_16', 'present_8_value_17'],
+                    ['present_9_key_18', 'present_9_value_19'],
+                    ['present_10_key_20', 'present_10_value_21'],
+                    ['present_11_key_22', 'present_11_value_23'],
+                    ['present_12_key_24', 'present_12_value_25'],
+                    ['present_13_key_26', 'present_13_value_27'],
+                    ['present_14_key_28', 'present_14_value_29'],
+                    ['present_15_key_30', 'present_15_value_31'],
+                    ['present_16_key_32', 'present_16_value_33'],
+                    ['present_17_key_34', 'present_17_value_35'],
+                    ['present_18_key_36', 'present_18_value_37'],
+                    ['present_19_key_38', 'present_19_value_39'],
+                    ['present_20_key_40', 'present_20_value_41'],
+                    ['present_21_key_42', 'present_21_value_43']
+                ];
+
+                const kvOutputs = {};
+                for (const [keyName, valueName] of presentNames) {
+                    kvOutputs[keyName] = await context.createTensor({
+                        dataType: 'float16', shape: [1, config.kvNumHeads, config.pastSeqLen, config.headSize],
+                        usage: Usage.READ, readable: true
+                    });
+                    kvOutputs[valueName] = await context.createTensor({
+                        dataType: 'float16', shape: [1, config.kvNumHeads, config.pastSeqLen, config.headSize],
+                        usage: Usage.READ, readable: true
+                    });
+                }
+
+                const logitsTensor = await context.createTensor({
+                    dataType: 'float16', shape: [1, config.seqLen, config.vocabSize],
+                    usage: Usage.READ, readable: true
+                });
+                log('Output tensors created');
+
+                // === Dispatch ===
+                const inputs = {
+                    input_ids_580: inputIdsTensor,
+                    attention_mask_596: attentionMaskTensor,
+                    position_ids_625: positionIdsTensor,
+                    ...kvInputs
+                };
+
+                const outputs = {
+                    logits_44: logitsTensor,
+                    ...kvOutputs
+                };
+
+                log(`\nRunning inference (${Object.keys(inputs).length} inputs, ${Object.keys(outputs).length} outputs)...`);
+                const start = performance.now();
+                
+                context.dispatch(graph, inputs, outputs);
+                
+                const logitsBuffer = await context.readTensor(logitsTensor);
+                const elapsed = performance.now() - start;
+                
+                log(`Prefill completed in ${elapsed.toFixed(0)}ms`);
+
+                // Convert logits at last actual position
+                const logitsUint16 = new Uint16Array(logitsBuffer);
+                const lastPosOffset = (actualLen - 1) * config.vocabSize;
+                const lastPosLogits = new Float32Array(config.vocabSize);
+                
+                for (let i = 0; i < config.vocabSize; i++) {
+                    lastPosLogits[i] = float16ToFloat32(logitsUint16[lastPosOffset + i]);
+                }
+
+                // Check validity
+                const hasNaN = lastPosLogits.some(x => isNaN(x));
+                const hasInf = lastPosLogits.some(x => !isFinite(x) && !isNaN(x));
+                
+                if (hasNaN || hasInf) {
+                    log(`WARNING: Logits contain NaN=${hasNaN}, Inf=${hasInf}`);
+                    log(`Sample: ${Array.from(lastPosLogits.slice(0, 5)).map(v => v.toFixed(4)).join(', ')}`);
+                }
+
+                // Get top 5
+                const top5 = Array.from(lastPosLogits.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5);
+                
+                const winner = argmax(lastPosLogits);
+                log(`\nNext token: ${winner.index} (logit: ${winner.value.toFixed(4)})`);
+                log(`Top 5: ${top5.map(([idx, val]) => `${idx}(${val.toFixed(2)})`).join(', ')}`);
+
+                // Update UI
+                elements.result.innerHTML = `Next Token: <strong>${winner.index}</strong>`;
+                elements.result.className = 'result correct';
+                elements.prefillTime.textContent = `${elapsed.toFixed(0)}ms`;
+                elements.inputLength.textContent = actualLen;
+                elements.top5.textContent = top5.map(([idx, val]) => `${idx} (${val.toFixed(2)})`).join(', ');
+                elements.output.classList.add('show');
+                
+                showStatus(`Inference complete! Next token: ${winner.index}`, 'success');
+
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                log(`\nERROR: ${error.message}`);
+                log(error.stack);
+                console.error(error);
+            } finally {
+                elements.runBtn.disabled = false;
+            }
+        });
+
+        log('Click "Load Model" to start.');
+    </script>
+</body>
+</html>
