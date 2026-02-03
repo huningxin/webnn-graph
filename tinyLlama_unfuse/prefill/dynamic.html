@@ -169,7 +169,7 @@
     </div>
 
     <script type="module">
-        import { buildGraph, WeightsFile } from '../Prefill_model_static.js';
+        import { buildGraph, WeightsFile } from './Prefill_model_dynamic.js';
         // Use CDN for transformers.js
         import { env, AutoTokenizer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.4.2';
 
@@ -360,8 +360,35 @@
                 log('WebNN context created (CPU)');
 
                 showStatus('Loading weights...');
-                weights = await WeightsFile.load('../Prefill_model.weights', '../Prefill_model.manifest.json');
-                log(`Weights loaded: ${(weights.buffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
+                // Manually load weights file (skip magic header check, like demo.html)
+                const [weightsResponse, manifestResponse] = await Promise.all([
+                    fetch('./Prefill_model.weights'),
+                    fetch('./Prefill_model.manifest.json')
+                ]);
+
+                if (!weightsResponse.ok) {
+                    throw new Error(`Failed to load weights: ${weightsResponse.statusText}`);
+                }
+                if (!manifestResponse.ok) {
+                    throw new Error(`Failed to load manifest: ${manifestResponse.statusText}`);
+                }
+
+                const buffer = await weightsResponse.arrayBuffer();
+                const manifest = await manifestResponse.json();
+
+                // Create custom WeightsFile object (bypass validation)
+                weights = {
+                    buffer: buffer,
+                    manifest: manifest,
+                    getSlice(name) {
+                        const tensor = this.manifest.tensors[name];
+                        if (!tensor) {
+                            throw new Error(`Tensor not found in manifest: ${name}`);
+                        }
+                        return tensor;
+                    }
+                };
+                log(`Weights loaded: ${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
 
                 // DEBUG: Load and display original pseudo inputs from weights
                 log('=== Original pseudo inputs from weights ===');
