@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TinyLlama WebNN Demo</title>
+    <title>WebNN TinyLlama 1.1B Chat v1.0 - Dynamic</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -119,29 +119,20 @@
 </head>
 <body>
     <div class="container">
-        <h1>🦙 TinyLlama WebNN Demo</h1>
-        <div class="subtitle">Prefill + Decode with Tokenizer</div>
+        <h1>WebNN TinyLlama 1.1B Chat v1.0 - Dynamic</h1>
 
         <div class="section">
             <label>Input Text:</label>
-            <textarea id="textInput" placeholder="Type your message here...">Hello, how are you?</textarea>
+            <textarea id="textInput" placeholder="Type your message here...">What is WebNN?</textarea>
         </div>
 
         <div class="section">
-            <div class="inline-inputs">
-                <div>
-                    <label>Max New Tokens:</label>
-                    <input type="number" id="maxTokens" value="32" min="1" max="256">
-                </div>
-                <div>
-                    <label>EOS Token IDs:</label>
-                    <input type="text" id="eosTokens" value="151645, 151643, 2" style="width: 180px;">
-                </div>
-            </div>
+            <label>Max Sequence Length:</label>
+            <input type="number" id="maxSeqLenInput" value="512" min="64" max="2048">
         </div>
 
-        <button id="loadBtn">1. Load Model</button>
-        <button id="runBtn" disabled>2. Generate</button>
+        <button id="loadBtn">Load Model</button>
+        <button id="runBtn" disabled>Generate</button>
         <button id="stopBtn" class="stop" disabled style="display:none;">Stop</button>
 
         <div id="status" class="status"></div>
@@ -181,14 +172,15 @@
         const MODEL_ID = 'TinyLlama/TinyLlama-1.1B-Chat-v1.0';
         const SYSTEM_CONTENT = 'You are a friendly chatbot who always responds in the style of a pirate';
 
-        // Model config - must match Prefill_model.js dynamic dimension maxSize
+        // Model config
         const CONFIG = {
-            maxSeqLen: 512,     // sequence_length & past_sequence_length maxSize
+            maxSeqLenLimit: 2048,  // Maximum allowed by dynamic model
             numLayers: 22,
             kvNumHeads: 4,
             headSize: 64,
             vocabSize: 32000,
             numHeads: 32,
+            eosTokenIds: [151645, 151643, 2],
         };
 
         const MLTensorUsage = { WEBGPU_INTEROP: 1, READ: 2, WRITE: 4 };
@@ -218,8 +210,7 @@
             status: document.getElementById('status'),
             output: document.getElementById('output'),
             textInput: document.getElementById('textInput'),
-            maxTokens: document.getElementById('maxTokens'),
-            eosTokens: document.getElementById('eosTokens'),
+            maxSeqLenInput: document.getElementById('maxSeqLenInput'),
             inputText: document.getElementById('inputText'),
             generatedText: document.getElementById('generatedText'),
             generatedTokens: document.getElementById('generatedTokens'),
@@ -282,56 +273,60 @@
             return await context.createTensor({ dataType, shape, usage: MLTensorUsage.READ, readable: true });
         }
 
-        /**
-         * Create pseudo inputs for ScatterND and attention mask operations.
-         * 
-         * Based on ACTUAL original weights data analysis:
-         * - _604: [1024,1] = [0,0,0,0, 1,1,1,1, 2,2,2,2, ...] - position indices, each repeated 4x
-         * - _606: [1024,2] = [(0,0), (0,1), (0,2), (0,3), (0,0), ...] - (batch=0, head_idx) pairs
-         * - _613: [256] = [1, 2, 3, 4, ..., 256] - 1-indexed sequence positions
-         * - _617: [1] = [1] - scalar value 1
-         * 
-         * For dynamic shapes, these need to be regenerated at the correct sizes.
-         * The key is to match the EXACT data patterns from the original weights.
-         */
-        function createPseudoInputs(seqLen, pastSeqLen) {
-            // _604: [seqLen, 4, 1] - position indices (0, 1, 2, ...), each repeated 4 times
-            // Original pattern: [0,0,0,0, 1,1,1,1, 2,2,2,2, ...]
-            const _604 = new Int32Array(seqLen * 4 * 1);
-            for (let pos = 0; pos < seqLen; pos++) {
-                for (let h = 0; h < 4; h++) {
-                    _604[pos * 4 + h] = pos;
+        // Helper: create tensor that can be both read and written
+        async function createReadWriteTensor(dataType, shape, data) {
+            const tensor = await context.createTensor({ 
+                dataType, 
+                shape, 
+                usage: MLTensorUsage.READ | MLTensorUsage.WRITE,
+                readable: true,
+                writable: true 
+            });
+            if (data) context.writeTensor(tensor, data);
+            return tensor;
+        }
+
+        // Prepare the WebNN GQA left constant of scatter indices
+        function generateIndices(batchSize, seqLen, kvNumHeads) {
+            const result = new Int32Array(seqLen * kvNumHeads * batchSize * 2);
+            for (let i = 0; i < seqLen; ++i) {
+                for (let j = 0; j < batchSize * kvNumHeads; ++j) {
+                    result[(i * batchSize * kvNumHeads + j) * 2 + 0] = Math.floor(j / kvNumHeads);
+                    result[(i * batchSize * kvNumHeads + j) * 2 + 1] = j % kvNumHeads;
                 }
             }
+            return result;
+        }
 
-            // _606: [seqLen, 4, 2] - (batch_idx=0, head_idx) pairs
-            // Original pattern: [(0,0), (0,1), (0,2), (0,3), (0,0), (0,1), ...]
-            const _606 = new Int32Array(seqLen * 4 * 2);
-            for (let pos = 0; pos < seqLen; pos++) {
-                for (let h = 0; h < 4; h++) {
-                    _606[(pos * 4 + h) * 2 + 0] = 0;  // batch index always 0
-                    _606[(pos * 4 + h) * 2 + 1] = h;  // head index 0,1,2,3
+        // Prepare the WebNN GQA right constant of scatter indices
+        function repeatSequence(batchSize, seqLen, kvNumHeads) {
+            const result = new Int32Array(seqLen * kvNumHeads * batchSize);
+            for (let i = 0; i < seqLen; ++i) {
+                for (let j = 0; j < batchSize * kvNumHeads; ++j) {
+                    result[i * batchSize * kvNumHeads + j] = i;
                 }
             }
+            return result;
+        }
 
-            // _613: [pastSeqLen, seqLen] - 2D position indices
-            // Original: 1D [256] = [1,2,3,...,256], expanded to [256,256]
-            // WebNN can't expand 1D to 2D with dynamic dims, so provide 2D directly
-            // Each row should be [1, 2, 3, ..., seqLen] (same as original after expand)
-            const _613 = new Int32Array(pastSeqLen * seqLen);
-            for (let p = 0; p < pastSeqLen; p++) {
-                for (let s = 0; s < seqLen; s++) {
-                    _613[p * seqLen + s] = s + 1;  // 1-indexed: 1, 2, 3, ...
+        // Prepare the WebNN GQA pre not-equal right data range
+        // Step 1: Generate [1, 2, 3, ..., seqLen]
+        // Step 2: Expand to [pastSeqLen, seqLen]
+        function preNerRightDataRange(seqLen, pastSeqLen) {
+            const result = new Int32Array(pastSeqLen * seqLen);
+            for (let p = 0; p < pastSeqLen; ++p) {
+                for (let s = 0; s < seqLen; ++s) {
+                    result[p * seqLen + s] = s + 1;  // 1-indexed: 1, 2, 3, ...
                 }
             }
+            return result;
+        }
 
-            // _617: [1, 32, seqLen, pastSeqLen] - attention mask base (all 1s)
-            // WebNN limitation: can't expand from size 1 to dynamic, so we provide full tensor
-            // The expand ops in graph become identity (same shape in = same shape out)
-            const _617 = new Int32Array(1 * CONFIG.numHeads * seqLen * pastSeqLen);
-            _617.fill(1);
-
-            return { _604, _606, _613, _617 };
+        // Prepare the WebNN value int one constant
+        function valueIntOneConstant(batchSize, numHeads, seqLen, pastSeqLen) {
+            const result = new Int32Array(batchSize * numHeads * seqLen * pastSeqLen);
+            result.fill(1);
+            return result;
         }
 
         // Decode tokens to text
@@ -356,8 +351,8 @@
                 log(`Tokenizer loaded: ${MODEL_ID}`);
 
                 showStatus('Creating WebNN context...');
-                context = await navigator.ml.createContext({ deviceType: 'cpu' });
-                log('WebNN context created (CPU)');
+                context = await navigator.ml.createContext({ deviceType: 'gpu' });
+                log('WebNN context created (GPU)');
 
                 showStatus('Loading weights...');
                 // Manually load weights file (skip magic header check, like demo.html)
@@ -390,26 +385,7 @@
                 };
                 log(`Weights loaded: ${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
 
-                // DEBUG: Load and display original pseudo inputs from weights
-                log('=== Original pseudo inputs from weights ===');
-                const _604Slice = weights.getSlice('_604');
-                const _604Orig = new Int32Array(weights.buffer.slice(_604Slice.byteOffset, _604Slice.byteOffset + _604Slice.byteLength));
-                log(`_604: shape=${JSON.stringify(_604Slice.shape)}, first 16: [${Array.from(_604Orig.slice(0, 16)).join(',')}]`);
-                
-                const _606Slice = weights.getSlice('_606');
-                const _606Orig = new Int32Array(weights.buffer.slice(_606Slice.byteOffset, _606Slice.byteOffset + _606Slice.byteLength));
-                log(`_606: shape=${JSON.stringify(_606Slice.shape)}, first 16: [${Array.from(_606Orig.slice(0, 16)).join(',')}]`);
-                
-                const _613Slice = weights.getSlice('_613');
-                const _613Orig = new Int32Array(weights.buffer.slice(_613Slice.byteOffset, _613Slice.byteOffset + _613Slice.byteLength));
-                log(`_613: shape=${JSON.stringify(_613Slice.shape)}, first 16: [${Array.from(_613Orig.slice(0, 16)).join(',')}]`);
-                
-                const _617Slice = weights.getSlice('_617');
-                const _617Orig = new Int32Array(weights.buffer.slice(_617Slice.byteOffset, _617Slice.byteOffset + _617Slice.byteLength));
-                log(`_617: shape=${JSON.stringify(_617Slice.shape)}, values: [${Array.from(_617Orig).join(',')}]`);
-                log('===========================================');
-
-                showStatus('Building graph (may take 30-60s)...');
+                showStatus('Building graph (may take 30s)...');
                 const buildStart = performance.now();
                 graph = await buildGraph(context, weights);
                 log(`Graph built in ${((performance.now() - buildStart) / 1000).toFixed(1)}s`);
@@ -448,9 +424,9 @@
                 elements.generatedTokens.textContent = '';
                 showStatus('Tokenizing input...');
 
-                const maxNewTokens = parseInt(elements.maxTokens.value) || 32;
-                const eosTokenIds = elements.eosTokens.value.split(',').map(t => parseInt(t.trim())).filter(t => !isNaN(t));
-                log(`EOS token IDs: [${eosTokenIds.join(', ')}]`);
+                // Get max sequence length from user input
+                const maxSeqLen = parseInt(elements.maxSeqLenInput.value) || 512;
+                log(`Max sequence length: ${maxSeqLen}, EOS tokens: [${CONFIG.eosTokenIds.join(', ')}]`);
 
                 // Get input text and create chat messages
                 const inputText = elements.textInput.value.trim();
@@ -470,13 +446,13 @@
                     return_tensor: false,
                 });
 
-                // Debug: show the actual text that was tokenized
-                const templateText = tokenizer.apply_chat_template(messages, {
-                    add_generation_prompt: true,
-                    tokenize: false,
-                });
-                log(`Chat template text:\n${templateText}`);
-                log(`Raw token IDs: [${inputIds.join(', ')}]`);
+                // // Debug: show the actual text that was tokenized
+                // const templateText = tokenizer.apply_chat_template(messages, {
+                //     add_generation_prompt: true,
+                //     tokenize: false,
+                // });
+                // log(`Chat template text:\n${templateText}`);
+                // log(`Raw token IDs: [${inputIds.join(', ')}]`);
 
                 // Convert to BigInt array
                 inputIds = inputIds.map(num => BigInt(num));
@@ -485,70 +461,89 @@
                 log(`Input text: "${inputText}"`);
                 log(`Tokenized to ${promptLen} tokens: [${inputIds.slice(0, 20).join(', ')}${promptLen > 20 ? '...' : ''}]`);
 
-                if (promptLen >= CONFIG.maxSeqLen) {
-                    throw new Error(`Input too long: ${promptLen} tokens (max: ${CONFIG.maxSeqLen})`);
+                if (promptLen >= maxSeqLen) {
+                    throw new Error(`Input too long: ${promptLen} tokens (max: ${maxSeqLen})`);
                 }
 
-                const seqLen = CONFIG.maxSeqLen;
                 const generatedTokens = [];
                 let totalDecodeTime = 0;
+                
+                // Use user-specified maxSeqLen as KV cache size
+                const kvCacheLen = maxSeqLen;
+                const kvShape = [1, CONFIG.kvNumHeads, kvCacheLen, CONFIG.headSize];
+                const kvSize = CONFIG.kvNumHeads * kvCacheLen * CONFIG.headSize;
 
-                // ============ PREFILL ============
+                // ============ PREFILL (seqLen = promptLen, kvCache = maxSeqLen) ============
                 showStatus('Running prefill...');
-                const prefillPseudo = createPseudoInputs(seqLen, seqLen);
+                
+                const prefillSeqLen = promptLen;
+                log(`PREFILL: seqLen=${prefillSeqLen}, kvCacheLen=${kvCacheLen} (fixed)`);
 
-                // Debug: log pseudo input samples
-                log(`DEBUG _604 first 16: [${Array.from(prefillPseudo._604.slice(0, 16)).join(',')}]`);
-                log(`DEBUG _606 first 16: [${Array.from(prefillPseudo._606.slice(0, 16)).join(',')}]`);
-                log(`DEBUG _613: size=${prefillPseudo._613.length}, first row [1..16]: [${Array.from(prefillPseudo._613.slice(0, 16)).join(',')}]`);
-                log(`DEBUG _617: size=${prefillPseudo._617.length}, all 1s=${prefillPseudo._617.every(x => x === 1)}`);
+                // Main inputs (no padding - use exact promptLen)
+                const prefillInputIds = inputIds.map(t => Number(t));
+                const prefillAttentionMask = Array(promptLen).fill(1);
+                const prefillPositionIds = Array.from({length: promptLen}, (_, i) => i);
 
-                // Pad inputs to maxSeqLen
-                const paddedInputIds = [...inputIds.map(t => Number(t)), ...Array(seqLen - promptLen).fill(0)];
-                const paddedAttentionMask = [...Array(promptLen).fill(1), ...Array(seqLen - promptLen).fill(0)];
-                const paddedPositionIds = [...Array(promptLen).keys(), ...Array(seqLen - promptLen).fill(0)];
+                const inputIdsTensor = await createWritableTensor('int64', [1, prefillSeqLen], 
+                    new BigInt64Array(prefillInputIds.map(t => BigInt(t))));
+                const attentionMaskTensor = await createWritableTensor('int64', [1, prefillSeqLen], 
+                    new BigInt64Array(prefillAttentionMask.map(t => BigInt(t))));
+                const positionIdsTensor = await createWritableTensor('int64', [1, prefillSeqLen], 
+                    new BigInt64Array(prefillPositionIds.map(t => BigInt(t))));
 
-                // Main inputs
-                const inputIdsTensor = await createWritableTensor('int64', [1, seqLen], 
-                    new BigInt64Array(paddedInputIds.map(t => BigInt(t))));
-                const attentionMaskTensor = await createWritableTensor('int64', [1, seqLen], 
-                    new BigInt64Array(paddedAttentionMask.map(t => BigInt(t))));
-                const positionIdsTensor = await createWritableTensor('int64', [1, seqLen], 
-                    new BigInt64Array(paddedPositionIds.map(t => BigInt(t))));
+                // GQA related inputs for prefill
+                const _601 = new Uint8Array([1]);  // Always 1 for prefill and 0 for decode
+                const _601PrefillTensor = await createWritableTensor('uint8', [1], _601);
 
-                // Pseudo inputs for prefill
-                // _613 is 2D [pastSeq, seq] (expanded from 1D); _617 is [1,32,seq,seq] all 1s
-                const _604Tensor = await createWritableTensor('int32', [seqLen, 4, 1], prefillPseudo._604);
-                const _606Tensor = await createWritableTensor('int32', [seqLen, 4, 2], prefillPseudo._606);
-                const _613Tensor = await createWritableTensor('int32', [seqLen, seqLen], prefillPseudo._613);
-                const _617Tensor = await createWritableTensor('int32', [1, CONFIG.numHeads, seqLen, seqLen], prefillPseudo._617);
+                const _604 = repeatSequence(1, prefillSeqLen, CONFIG.kvNumHeads);
+                const _604PrefillTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 1], _604);
 
-                // KV cache inputs (empty for prefill)
-                const kvShape = [1, CONFIG.kvNumHeads, seqLen, CONFIG.headSize];
-                const emptyKVData = new Uint16Array(CONFIG.kvNumHeads * seqLen * CONFIG.headSize).fill(0);
-                const kvCacheTensors = {};
+                const _606 = generateIndices(1, prefillSeqLen, CONFIG.kvNumHeads);
+                const _606PrefillTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 2], _606);
+
+                const _613 = preNerRightDataRange(prefillSeqLen, kvCacheLen);
+                const _613PrefillTensor = await createWritableTensor('int32', [kvCacheLen, prefillSeqLen], _613);
+
+                const _617 = valueIntOneConstant(1, CONFIG.numHeads, prefillSeqLen, kvCacheLen);
+                const _617PrefillTensor = await createWritableTensor('int32', [1, CONFIG.numHeads, prefillSeqLen, kvCacheLen], _617);
+
+                // === Create TWO sets of KV cache tensors for prefill and decode ===
+                // Prefill: A = input (0), B = output
+                // Decode:  B/A swap each step
+                const emptyKVData = new Uint16Array(kvSize).fill(0);
+                
+                const kvCacheA = {};  // Set A - prefill input (0)
+                const kvCacheB = {};  // Set B - prefill output
                 for (const [keyName, valueName] of KV_CACHE_NAMES) {
-                    kvCacheTensors[keyName] = await createWritableTensor('float16', kvShape, emptyKVData);
-                    kvCacheTensors[valueName] = await createWritableTensor('float16', kvShape, emptyKVData);
+                    kvCacheA[keyName] = await createReadWriteTensor('float16', kvShape, emptyKVData);
+                    kvCacheA[valueName] = await createReadWriteTensor('float16', kvShape, emptyKVData);
+                    kvCacheB[keyName] = await createReadWriteTensor('float16', kvShape, emptyKVData);
+                    kvCacheB[valueName] = await createReadWriteTensor('float16', kvShape, emptyKVData);
                 }
-
-                // Output tensors for prefill
-                let presentKVTensors = {};
-                for (const [keyName, valueName] of PRESENT_KV_NAMES) {
-                    presentKVTensors[keyName] = await createReadableTensor('float16', kvShape);
-                    presentKVTensors[valueName] = await createReadableTensor('float16', kvShape);
+                
+                // Map kvCacheB to present_kv output names for prefill
+                const prefillPresentKVTensors = {};
+                for (let i = 0; i < CONFIG.numLayers; i++) {
+                    const [keyName, valueName] = KV_CACHE_NAMES[i];
+                    const [presentKeyName, presentValueName] = PRESENT_KV_NAMES[i];
+                    prefillPresentKVTensors[presentKeyName] = kvCacheB[keyName];
+                    prefillPresentKVTensors[presentValueName] = kvCacheB[valueName];
                 }
-                const logitsTensor = await createReadableTensor('float16', [1, seqLen, CONFIG.vocabSize]);
+                const logitsTensor = await createReadableTensor('float16', [1, prefillSeqLen, CONFIG.vocabSize]);
 
                 // Dispatch prefill
                 const prefillInputs = {
                     input_ids_580: inputIdsTensor,
                     attention_mask_596: attentionMaskTensor,
                     position_ids_625: positionIdsTensor,
-                    ...kvCacheTensors,
-                    _604: _604Tensor, _606: _606Tensor, _613: _613Tensor, _617: _617Tensor,
+                    ...kvCacheA,
+                    webnn_GQA_condition_constant_for_where_1: _601PrefillTensor,
+                    webnn_GQA_right_constant_of_scatter_indices: _604PrefillTensor,
+                    webnn_GQA_left_constant_of_scatter_indices: _606PrefillTensor,
+                    webnn_GQA_pre_neq_right_data_range: _613PrefillTensor,
+                    value_int_one_constant: _617PrefillTensor,
                 };
-                const prefillOutputs = { logits_44: logitsTensor, ...presentKVTensors };
+                const prefillOutputs = { logits_44: logitsTensor, ...prefillPresentKVTensors };  // Output store to kvCacheB
 
                 log('Dispatching prefill...');
                 const prefillStart = performance.now();
@@ -556,31 +551,22 @@
                 
                 const logitsBuffer = await context.readTensor(logitsTensor);
                 const prefillTime = performance.now() - prefillStart;
-                log(`Prefill completed in ${prefillTime.toFixed(0)}ms`);
+                log(`Prefill completed in ${prefillTime.toFixed(0)}ms (processed ${promptLen} tokens)`);
 
-                // Get first generated token
+                // Get first generated token (last position in the output)
                 const logitsUint16 = new Uint16Array(logitsBuffer);
                 const lastPosStart = (promptLen - 1) * CONFIG.vocabSize;
-                log(`DEBUG: promptLen=${promptLen}, lastPosStart=${lastPosStart}, total logits size=${logitsUint16.length}`);
                 
                 const lastPosLogits = new Float32Array(CONFIG.vocabSize);
                 for (let i = 0; i < CONFIG.vocabSize; i++) {
                     lastPosLogits[i] = float16ToFloat32(logitsUint16[lastPosStart + i]);
                 }
 
-                // Debug: check for NaN/Inf in logits
-                let nanCount = 0, infCount = 0;
-                for (let i = 0; i < CONFIG.vocabSize; i++) {
-                    if (isNaN(lastPosLogits[i])) nanCount++;
-                    if (!isFinite(lastPosLogits[i])) infCount++;
-                }
-                log(`DEBUG: logits NaN count: ${nanCount}, Inf count: ${infCount}`);
-                
-                // Debug: show top 10 tokens
-                const top10 = Array.from(lastPosLogits.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 10);
-                log(`DEBUG Top 10 tokens: ${top10.map(([idx, val]) => `${idx}("${decodeTokens([idx])}")=${val.toFixed(3)}`).join(', ')}`);
+                // // Debug: show top 10 tokens
+                // const top10 = Array.from(lastPosLogits.entries())
+                //     .sort((a, b) => b[1] - a[1])
+                //     .slice(0, 10);
+                // log(`Top 10 tokens: ${top10.map(([idx, val]) => `${idx}("${decodeTokens([idx])}")=${val.toFixed(3)}`).join(', ')}`);
 
                 let nextToken = argmax(lastPosLogits).index;
                 generatedTokens.push(nextToken);
@@ -593,68 +579,99 @@
                 elements.prefillTime.textContent = `${prefillTime.toFixed(0)}ms`;
                 elements.output.classList.add('show');
 
-                // Read KV cache from prefill outputs for decode
-                let currentKVCache = {};
-                for (let i = 0; i < CONFIG.numLayers; i++) {
-                    const [presentKeyName, presentValueName] = PRESENT_KV_NAMES[i];
-                    currentKVCache[`key_${i}`] = await context.readTensor(presentKVTensors[presentKeyName]);
-                    currentKVCache[`value_${i}`] = await context.readTensor(presentKVTensors[presentValueName]);
-                }
+                // ============ DECODE LOOP (seqLen=1, kvCache=maxSeqLen) ============
+                let currentTotalLen = promptLen + 1;
+                showStatus(`Generating... (${currentTotalLen}/${maxSeqLen})`);
 
-                // ============ DECODE LOOP ============
-                let currentSeqLen = promptLen + 1;
-                showStatus(`Generating... (${generatedTokens.length}/${maxNewTokens})`);
+                // Decode uses sequence_length = 1
+                const decodeSeqLen = 1;
+                
+                // GQA related inputs for decode
+                const _601DecodeTensor = await createWritableTensor('uint8', [1], new Uint8Array([0]));  // (0 = decode)
 
-                for (let step = 1; step < maxNewTokens && !stopGeneration; step++) {
-                    if (eosTokenIds.includes(nextToken)) {
+                const _604DecodeData = repeatSequence(1, 1, CONFIG.kvNumHeads);
+                const _604DecodeTensor = await createWritableTensor('int32', [1, 4, 1], _604DecodeData);
+
+                const _606DecodeData = generateIndices(1, 1, CONFIG.kvNumHeads);
+                const _606DecodeTensor = await createWritableTensor('int32', [1, 4, 2], _606DecodeData);
+
+                const _613DecodeData = preNerRightDataRange(1, kvCacheLen);
+                const _613DecodeTensor = await createWritableTensor('int32', [kvCacheLen, 1], _613DecodeData);
+
+                const _617DecodeData = valueIntOneConstant(1, CONFIG.numHeads, 1, kvCacheLen);
+                const _617DecodeTensor = await createWritableTensor('int32', [1, CONFIG.numHeads, 1, kvCacheLen], _617DecodeData);
+                
+                // Reusable input tensors for decode
+                const decodeInputIdsTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
+                const decodeAttentionMaskTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
+                const decodePositionIdsTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
+                
+                // === OPTIMIZATION: Reference swap for KV cache ===
+                // WebNN doesn't support same tensor as input and output.
+                // Solution: Use TWO sets of KV tensors (A and B), alternate between them.
+                // - Prefill: A = input (empty), B = output
+                // - Decode step 1: B = input, A = output
+                // - Decode step 2: A = input, B = output
+                // - Repeat...
+                
+                // Track which set is input vs output (swap each step)
+                // After prefill, kvCacheB has the results, so start with B as input
+                let kvInput = kvCacheB;
+                let kvOutput = kvCacheA;
+
+                // Decode loop: continue until maxSeqLen or EOS
+                for (let step = 1; !stopGeneration; step++) {
+                    if (CONFIG.eosTokenIds.includes(nextToken)) {
                         log(`EOS token ${nextToken} reached at step ${step}`);
                         break;
                     }
 
-                    if (currentSeqLen >= CONFIG.maxSeqLen) {
-                        log(`Max sequence length reached: ${currentSeqLen}`);
+                    if (currentTotalLen >= maxSeqLen) {
+                        log(`Max sequence length reached: ${currentTotalLen}/${maxSeqLen}`);
                         break;
                     }
 
                     const decodeStart = performance.now();
 
-                    // Pseudo inputs are static for this model (same pattern regardless of decode step)
-                    // The attention_mask and position_ids handle the dynamic part
+                    // Update input tensors
+                    context.writeTensor(decodeInputIdsTensor, new BigInt64Array([BigInt(nextToken)]));
+                    context.writeTensor(decodeAttentionMaskTensor, new BigInt64Array([BigInt(currentTotalLen)]));
+                    context.writeTensor(decodePositionIdsTensor, new BigInt64Array([BigInt(currentTotalLen - 1)]));
 
-                    // Pad decode input to maxSeqLen
-                    const decodeInputIds = [nextToken, ...Array(seqLen - 1).fill(0)];
-                    const decodeAttentionMask = [...Array(currentSeqLen).fill(1), ...Array(seqLen - currentSeqLen).fill(0)];
-                    const decodePositionIds = [currentSeqLen - 1, ...Array(seqLen - 1).fill(0)];
+                    // // Debug first decode step
+                    // if (step === 1) {
+                    //     log(`DECODE step ${step}: token=${nextToken}, pos=${currentTotalLen - 1}, attn_mask=${currentTotalLen}`);
+                    //     log(`  Scatter position = _604(0) + (attn_mask-1) = ${currentTotalLen - 1}`);
+                    // }
 
-                    // Update tensors
-                    context.writeTensor(inputIdsTensor, new BigInt64Array(decodeInputIds.map(t => BigInt(t))));
-                    context.writeTensor(attentionMaskTensor, new BigInt64Array(decodeAttentionMask.map(t => BigInt(t))));
-                    context.writeTensor(positionIdsTensor, new BigInt64Array(decodePositionIds.map(t => BigInt(t))));
+                    // Create logits output tensor
+                    const decodeLogitsTensor = await createReadableTensor('float16', [1, 1, CONFIG.vocabSize]);
 
-                    // Update KV cache tensors
+                    // Build output tensors map with present_kv names pointing to kvOutput
+                    const presentKVOutputs = {};
                     for (let i = 0; i < CONFIG.numLayers; i++) {
                         const [keyName, valueName] = KV_CACHE_NAMES[i];
-                        context.writeTensor(kvCacheTensors[keyName], new Uint16Array(currentKVCache[`key_${i}`]));
-                        context.writeTensor(kvCacheTensors[valueName], new Uint16Array(currentKVCache[`value_${i}`]));
+                        const [presentKeyName, presentValueName] = PRESENT_KV_NAMES[i];
+                        presentKVOutputs[presentKeyName] = kvOutput[keyName];
+                        presentKVOutputs[presentValueName] = kvOutput[valueName];
                     }
-
-                    // Create new output tensors
-                    presentKVTensors = {};
-                    for (const [keyName, valueName] of PRESENT_KV_NAMES) {
-                        presentKVTensors[keyName] = await createReadableTensor('float16', kvShape);
-                        presentKVTensors[valueName] = await createReadableTensor('float16', kvShape);
-                    }
-                    const decodeLogitsTensor = await createReadableTensor('float16', [1, seqLen, CONFIG.vocabSize]);
 
                     // Dispatch decode
                     const decodeInputs = {
-                        input_ids_580: inputIdsTensor,
-                        attention_mask_596: attentionMaskTensor,
-                        position_ids_625: positionIdsTensor,
-                        ...kvCacheTensors,
-                        _604: _604Tensor, _606: _606Tensor, _613: _613Tensor, _617: _617Tensor,
+                        input_ids_580: decodeInputIdsTensor,
+                        attention_mask_596: decodeAttentionMaskTensor,
+                        position_ids_625: decodePositionIdsTensor,
+                        ...kvInput,  // Current input KV cache
+                        webnn_GQA_condition_constant_for_where_1: _601DecodeTensor,
+                        webnn_GQA_right_constant_of_scatter_indices: _604DecodeTensor,
+                        webnn_GQA_left_constant_of_scatter_indices: _606DecodeTensor,
+                        webnn_GQA_pre_neq_right_data_range: _613DecodeTensor,
+                        value_int_one_constant: _617DecodeTensor,
                     };
-                    const decodeOutputs = { logits_44: decodeLogitsTensor, ...presentKVTensors };
+                    const decodeOutputs = { 
+                        logits_44: decodeLogitsTensor, 
+                        ...presentKVOutputs  // Output goes to kvOutput
+                    };
 
                     context.dispatch(graph, decodeInputs, decodeOutputs);
                     
@@ -671,26 +688,25 @@
 
                     nextToken = argmax(decodeLogits).index;
                     generatedTokens.push(nextToken);
-                    currentSeqLen++;
+                    currentTotalLen++;
 
-                    // Read updated KV cache
-                    for (let i = 0; i < CONFIG.numLayers; i++) {
-                        const [presentKeyName, presentValueName] = PRESENT_KV_NAMES[i];
-                        currentKVCache[`key_${i}`] = await context.readTensor(presentKVTensors[presentKeyName]);
-                        currentKVCache[`value_${i}`] = await context.readTensor(presentKVTensors[presentValueName]);
-                    }
+                    // === SWAP references for next iteration ===
+                    // No data copy?
+                    const temp = kvInput;
+                    kvInput = kvOutput;
+                    kvOutput = temp;
 
-                    // Update UI with decoded text
+                    // Update UI
                     elements.generatedText.textContent = decodeTokens(generatedTokens);
                     elements.generatedTokens.textContent = `[${generatedTokens.join(', ')}]`;
                     elements.decodeTime.textContent = `${totalDecodeTime.toFixed(0)}ms`;
                     elements.tokensPerSec.textContent = `${(step / (totalDecodeTime / 1000)).toFixed(2)}`;
-                    elements.totalTokens.textContent = `${promptLen} + ${generatedTokens.length} = ${promptLen + generatedTokens.length}`;
-                    showStatus(`Generating... (${generatedTokens.length}/${maxNewTokens})`);
+                    elements.totalTokens.textContent = `${promptLen} + ${generatedTokens.length} = ${currentTotalLen}/${maxSeqLen}`;
+                    showStatus(`Generating... (${currentTotalLen}/${maxSeqLen})`);
 
-                    if (step % 5 === 0) {
-                        log(`Step ${step}: token ${nextToken} = "${decodeTokens([nextToken])}", ${decodeTime.toFixed(0)}ms`);
-                    }
+                    // if (step % 5 === 0) {
+                    //     log(`Step ${step}: token ${nextToken} = "${decodeTokens([nextToken])}", ${decodeTime.toFixed(0)}ms`);
+                    // }
 
                     // Yield to UI
                     await new Promise(resolve => setTimeout(resolve, 0));
