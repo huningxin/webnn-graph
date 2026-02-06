@@ -187,8 +187,8 @@
 
         // KV cache tensor names (22 layers x 2 = 44 tensors)
         const KV_CACHE_NAMES = Array.from({length: CONFIG.numLayers}, (_, i) => {
-            const keyIds = [652, 771, 890, 1009, 1128, 1247, 1366, 1485, 1604, 1723, 1842, 1961, 2080, 2199, 2318, 2437, 2556, 2675, 2794, 2913, 3032, 3151];
-            const valIds = [609, 735, 854, 973, 1092, 1211, 1330, 1449, 1568, 1687, 1806, 1925, 2044, 2163, 2282, 2401, 2520, 2639, 2758, 2877, 2996, 3115];
+            const keyIds = [649, 759, 868, 977, 1086, 1195, 1304, 1413, 1522, 1631, 1740, 1849, 1958, 2067, 2176, 2285, 2394, 2503, 2612, 2721, 2830, 2939];
+            const valIds = [606, 723, 832, 941, 1050, 1159, 1268, 1377, 1486, 1595, 1704, 1813, 1922, 2031, 2140, 2249, 2358, 2467, 2576, 2685, 2794, 2903];
             return [`past_key_values_${i}_key_${keyIds[i]}`, `past_key_values_${i}_value_${valIds[i]}`];
         });
 
@@ -197,6 +197,7 @@
         );
 
         let context = null;
+        let maxSeqLen = null;
         let graph = null;
         let weights = null;
         let tokenizer = null;
@@ -263,24 +264,23 @@
 
         // Helper: create writable tensor
         async function createWritableTensor(dataType, shape, data) {
-            const tensor = await context.createTensor({ dataType, shape, usage: MLTensorUsage.WRITE, writable: true });
+            const tensor = await context.createTensor({ dataType, shape, writable: true });
             context.writeTensor(tensor, data);
             return tensor;
         }
 
         // Helper: create readable tensor
         async function createReadableTensor(dataType, shape) {
-            return await context.createTensor({ dataType, shape, usage: MLTensorUsage.READ, readable: true });
+            return await context.createTensor({ dataType, shape, readable: true });
         }
 
         // Helper: create tensor that can be both read and written
         async function createReadWriteTensor(dataType, shape, data) {
-            const tensor = await context.createTensor({ 
-                dataType, 
-                shape, 
-                usage: MLTensorUsage.READ | MLTensorUsage.WRITE,
+            const tensor = await context.createTensor({
+                dataType,
+                shape,
                 readable: true,
-                writable: true 
+                writable: true
             });
             if (data) context.writeTensor(tensor, data);
             return tensor;
@@ -310,21 +310,18 @@
         }
 
         // Prepare the WebNN GQA pre not-equal right data range
-        // Step 1: Generate [1, 2, 3, ..., seqLen]
-        // Step 2: Expand to [pastSeqLen, seqLen]
-        function preNerRightDataRange(seqLen, pastSeqLen) {
-            const result = new Int32Array(pastSeqLen * seqLen);
-            for (let p = 0; p < pastSeqLen; ++p) {
-                for (let s = 0; s < seqLen; ++s) {
-                    result[p * seqLen + s] = s + 1;  // 1-indexed: 1, 2, 3, ...
-                }
+        // Generate [1, 2, 3, ..., seqLen]
+        function preNerRightDataRange(seqLen) {
+            const result = new Int32Array(seqLen);
+            for (let s = 0; s < seqLen; ++s) {
+                result[s] = s + 1;  // 1-indexed: 1, 2, 3, ...
             }
             return result;
         }
 
         // Prepare the WebNN value int one constant
-        function valueIntOneConstant(batchSize, numHeads, seqLen, pastSeqLen) {
-            const result = new Int32Array(batchSize * numHeads * seqLen * pastSeqLen);
+        function valueIntOneConstant(seqLen) {
+            const result = new Int32Array(seqLen);
             result.fill(1);
             return result;
         }
@@ -385,13 +382,18 @@
                 };
                 log(`Weights loaded: ${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
 
+                // Get max sequence length from user input
+                maxSeqLen = parseInt(elements.maxSeqLenInput.value) || 512;
+                log(`Max sequence length: ${maxSeqLen}`);
+
                 showStatus('Building graph (may take 30s)...');
                 const buildStart = performance.now();
-                graph = await buildGraph(context, weights);
+                graph = await buildGraph(context, weights, maxSeqLen);
                 log(`Graph built in ${((performance.now() - buildStart) / 1000).toFixed(1)}s`);
 
                 isModelLoaded = true;
                 elements.runBtn.disabled = false;
+                elements.maxSeqLenInput.disabled = true;
                 showStatus('✅ Model loaded successfully!', 'success');
                 log('Model ready for inference');
 
@@ -423,10 +425,6 @@
                 elements.generatedText.textContent = '';
                 elements.generatedTokens.textContent = '';
                 showStatus('Tokenizing input...');
-
-                // Get max sequence length from user input
-                const maxSeqLen = parseInt(elements.maxSeqLenInput.value) || 512;
-                log(`Max sequence length: ${maxSeqLen}, EOS tokens: [${CONFIG.eosTokenIds.join(', ')}]`);
 
                 // Get input text and create chat messages
                 const inputText = elements.textInput.value.trim();
@@ -501,11 +499,11 @@
                 const _606 = generateIndices(1, prefillSeqLen, CONFIG.kvNumHeads);
                 const _606PrefillTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 2], _606);
 
-                const _613 = preNerRightDataRange(prefillSeqLen, kvCacheLen);
-                const _613PrefillTensor = await createWritableTensor('int32', [kvCacheLen, prefillSeqLen], _613);
+                const _613 = preNerRightDataRange(prefillSeqLen);
+                const _613PrefillTensor = await createWritableTensor('int32', [prefillSeqLen], _613);
 
-                const _617 = valueIntOneConstant(1, CONFIG.numHeads, prefillSeqLen, kvCacheLen);
-                const _617PrefillTensor = await createWritableTensor('int32', [1, CONFIG.numHeads, prefillSeqLen, kvCacheLen], _617);
+                const _617 = valueIntOneConstant(prefillSeqLen);
+                const _617PrefillTensor = await createWritableTensor('int32', [1, 1, prefillSeqLen, 1], _617);
 
                 // === Create TWO sets of KV cache tensors for prefill and decode ===
                 // Prefill: A = input (0), B = output
@@ -534,8 +532,8 @@
                 // Dispatch prefill
                 const prefillInputs = {
                     input_ids_580: inputIdsTensor,
-                    attention_mask_596: attentionMaskTensor,
-                    position_ids_625: positionIdsTensor,
+                    attention_mask_593: attentionMaskTensor,
+                    position_ids_622: positionIdsTensor,
                     ...kvCacheA,
                     webnn_GQA_condition_constant_for_where_1: _601PrefillTensor,
                     webnn_GQA_right_constant_of_scatter_indices: _604PrefillTensor,
@@ -595,15 +593,14 @@
                 const _606DecodeData = generateIndices(1, 1, CONFIG.kvNumHeads);
                 const _606DecodeTensor = await createWritableTensor('int32', [1, 4, 2], _606DecodeData);
 
-                const _613DecodeData = preNerRightDataRange(1, kvCacheLen);
-                const _613DecodeTensor = await createWritableTensor('int32', [kvCacheLen, 1], _613DecodeData);
+                const _613DecodeData = preNerRightDataRange(1);
+                const _613DecodeTensor = await createWritableTensor('int32', [1], _613DecodeData);
 
-                const _617DecodeData = valueIntOneConstant(1, CONFIG.numHeads, 1, kvCacheLen);
-                const _617DecodeTensor = await createWritableTensor('int32', [1, CONFIG.numHeads, 1, kvCacheLen], _617DecodeData);
+                const _617DecodeData = valueIntOneConstant(1);
+                const _617DecodeTensor = await createWritableTensor('int32', [1, 1, 1, 1], _617DecodeData);
                 
                 // Reusable input tensors for decode
                 const decodeInputIdsTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
-                const decodeAttentionMaskTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
                 const decodePositionIdsTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
                 
                 // === OPTIMIZATION: Reference swap for KV cache ===
@@ -635,8 +632,12 @@
 
                     // Update input tensors
                     context.writeTensor(decodeInputIdsTensor, new BigInt64Array([BigInt(nextToken)]));
-                    context.writeTensor(decodeAttentionMaskTensor, new BigInt64Array([BigInt(currentTotalLen)]));
                     context.writeTensor(decodePositionIdsTensor, new BigInt64Array([BigInt(currentTotalLen - 1)]));
+                    
+                    // attention_mask shape is [1, total_sequence_length]
+                    // All values are 1 (indicating valid positions)
+                    const decodeAttentionMask = new BigInt64Array(currentTotalLen).fill(1n);
+                    const decodeAttentionMaskTensor = await createWritableTensor('int64', [1, currentTotalLen], decodeAttentionMask);
 
                     // // Debug first decode step
                     // if (step === 1) {
@@ -659,8 +660,8 @@
                     // Dispatch decode
                     const decodeInputs = {
                         input_ids_580: decodeInputIdsTensor,
-                        attention_mask_596: decodeAttentionMaskTensor,
-                        position_ids_625: decodePositionIdsTensor,
+                        attention_mask_593: decodeAttentionMaskTensor,
+                        position_ids_622: decodePositionIdsTensor,
                         ...kvInput,  // Current input KV cache
                         webnn_GQA_condition_constant_for_where_1: _601DecodeTensor,
                         webnn_GQA_right_constant_of_scatter_indices: _604DecodeTensor,
