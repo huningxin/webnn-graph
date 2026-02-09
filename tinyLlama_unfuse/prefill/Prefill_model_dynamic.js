@@ -8244,6 +8244,11 @@ export async function buildGraph(context, weights, max_sequence_length) {
     // const sl = weights.getSlice("_598");
     // const buf = weights.buffer.slice(sl.byteOffset, sl.byteOffset + sl.byteLength);
     // env.set("_598", builder.constant({ dataType: "uint8", shape: [1] }, buf));
+
+    // This tensor is "webnn_GQA_condition_constant_for_where_1" of shape [1]. It controls when qkv_sequence_length > 1, the key and value are scattered to the
+    // beginning of kv cache.
+    // See WebNN EP gqa_op_builder.cc for details: https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/core/providers/webnn/builders/impl/gqa_op_builder.cc#L356
+    // Change it to input for setting prefill and decoding modes.
     env.set("_598", builder.input("webnn_GQA_condition_constant_for_where_1", {dataType: "uint8", shape: [1] }));
   }
   {
@@ -8255,24 +8260,40 @@ export async function buildGraph(context, weights, max_sequence_length) {
     // const sl = weights.getSlice("_601");
     // const buf = weights.buffer.slice(sl.byteOffset, sl.byteOffset + sl.byteLength);
     // env.set("_601", builder.constant({ dataType: "int32", shape: [past_sequence_length, 1] }, buf));
+
+    // This tensor is "webnn_GQA_right_constant_of_scatter_indices" of shape [batch_size * qkv_sequence_length * kv_num_heads, 1].
+    // See WebNN EP gqa_op_builder.cc for details: https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/core/providers/webnn/builders/impl/gqa_op_builder.cc#L347
+    // Change it to input to allow dynamic sequence length.
     env.set("_601", builder.input("webnn_GQA_right_constant_of_scatter_indices", {dataType: "int32", shape: [sequence_length, 4, 1] }));
   }
   {
     // const sl = weights.getSlice("_603");
     // const buf = weights.buffer.slice(sl.byteOffset, sl.byteOffset + sl.byteLength);
     // env.set("_603", builder.constant({ dataType: "int32", shape: [past_sequence_length, 2] }, buf));
+
+    // This tensor is "webnn_GQA_left_constant_of_scatter_indices" of shape [batch_size * qkv_sequence_length * kv_num_heads, 2].
+    // See WebNN EP gqa_op_builder.cc for details: https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/core/providers/webnn/builders/impl/gqa_op_builder.cc#L341
+    // Change it to input to allow dynamic sequence length.
     env.set("_603", builder.input("webnn_GQA_left_constant_of_scatter_indices", {dataType: "int32", shape: [sequence_length, 4, 2] }));
   }
   {
     // const sl = weights.getSlice("_610");
     // const buf = weights.buffer.slice(sl.byteOffset, sl.byteOffset + sl.byteLength);
     // env.set("_610", builder.constant({ dataType: "int32", shape: [sequence_length] }, buf));
+
+    // This tensor is "webnn_GQA_pre_neq_right_data_range" of shape [qkv_sequence_length] and then is expanded to shape [past_sequence_length, qkv_sequence_length].
+    // See WebNN EP gqa_op_builder.cc for details: https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/core/providers/webnn/builders/impl/gqa_op_builder.cc#L491
+    // Change it to input to allow dynamic sequence length.
     env.set("_610", builder.input("webnn_GQA_pre_neq_right_data_range", {dataType: "int32", shape: [sequence_length] }));
   }
   {
     // const sl = weights.getSlice("_614");
     // const buf = weights.buffer.slice(sl.byteOffset, sl.byteOffset + sl.byteLength);
     // env.set("_614", builder.constant({ dataType: "int32", shape: [1] }, buf));
+
+    // This tensor is "value_int_one_constant" which is expanded to shape [batch_size, num_heads, qkv_sequence_length, past_sequence_length].
+    // See WebNN EP gqa_op_builder.cc for details: https://github.com/microsoft/onnxruntime/blob/main/onnxruntime/core/providers/webnn/builders/impl/gqa_op_builder.cc#L472
+    // Because expanding a constant tensor with shape [1] to dynamic shape is not supported in WebNN EP, change it to input to allow dynamic sequence length
     env.set("_614", builder.input("value_int_one_constant", {dataType: "int32", shape: [1, 1, sequence_length, 1] }));
   }
   {

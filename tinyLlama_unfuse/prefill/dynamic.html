@@ -490,20 +490,20 @@
                     new BigInt64Array(prefillPositionIds.map(t => BigInt(t))));
 
                 // GQA related inputs for prefill
-                const _601 = new Uint8Array([1]);  // Always 1 for prefill and 0 for decode
-                const _601PrefillTensor = await createWritableTensor('uint8', [1], _601);
+                const gqaCondition = new Uint8Array([1]);  // 1 = prefill mode, 0 = decode mode
+                const gqaConditionTensor = await createWritableTensor('uint8', [1], gqaCondition);
 
-                const _604 = repeatSequence(1, prefillSeqLen, CONFIG.kvNumHeads);
-                const _604PrefillTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 1], _604);
+                const scatterIndicesRight = repeatSequence(1, prefillSeqLen, CONFIG.kvNumHeads);
+                const scatterIndicesRightTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 1], scatterIndicesRight);
 
-                const _606 = generateIndices(1, prefillSeqLen, CONFIG.kvNumHeads);
-                const _606PrefillTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 2], _606);
+                const scatterIndicesLeft = generateIndices(1, prefillSeqLen, CONFIG.kvNumHeads);
+                const scatterIndicesLeftTensor = await createWritableTensor('int32', [prefillSeqLen, 4, 2], scatterIndicesLeft);
 
-                const _613 = preNerRightDataRange(prefillSeqLen);
-                const _613PrefillTensor = await createWritableTensor('int32', [prefillSeqLen], _613);
+                const gqaPositionRange = preNerRightDataRange(prefillSeqLen);
+                const gqaPositionRangeTensor = await createWritableTensor('int32', [prefillSeqLen], gqaPositionRange);
 
-                const _617 = valueIntOneConstant(prefillSeqLen);
-                const _617PrefillTensor = await createWritableTensor('int32', [1, 1, prefillSeqLen, 1], _617);
+                const gqaMaskOnes = valueIntOneConstant(prefillSeqLen);
+                const gqaMaskOnesTensor = await createWritableTensor('int32', [1, 1, prefillSeqLen, 1], gqaMaskOnes);
 
                 // === Create TWO sets of KV cache tensors for prefill and decode ===
                 // Prefill: A = input (0), B = output
@@ -535,11 +535,11 @@
                     attention_mask_593: attentionMaskTensor,
                     position_ids_622: positionIdsTensor,
                     ...kvCacheA,
-                    webnn_GQA_condition_constant_for_where_1: _601PrefillTensor,
-                    webnn_GQA_right_constant_of_scatter_indices: _604PrefillTensor,
-                    webnn_GQA_left_constant_of_scatter_indices: _606PrefillTensor,
-                    webnn_GQA_pre_neq_right_data_range: _613PrefillTensor,
-                    value_int_one_constant: _617PrefillTensor,
+                    webnn_GQA_condition_constant_for_where_1: gqaConditionTensor,
+                    webnn_GQA_right_constant_of_scatter_indices: scatterIndicesRightTensor,
+                    webnn_GQA_left_constant_of_scatter_indices: scatterIndicesLeftTensor,
+                    webnn_GQA_pre_neq_right_data_range: gqaPositionRangeTensor,
+                    value_int_one_constant: gqaMaskOnesTensor,
                 };
                 const prefillOutputs = { logits_44: logitsTensor, ...prefillPresentKVTensors };  // Output store to kvCacheB
 
@@ -585,19 +585,19 @@
                 const decodeSeqLen = 1;
                 
                 // GQA related inputs for decode
-                const _601DecodeTensor = await createWritableTensor('uint8', [1], new Uint8Array([0]));  // (0 = decode)
+                const gqaConditionDecodeTensor = await createWritableTensor('uint8', [1], new Uint8Array([0]));  // 0 = decode mode
 
-                const _604DecodeData = repeatSequence(1, 1, CONFIG.kvNumHeads);
-                const _604DecodeTensor = await createWritableTensor('int32', [1, 4, 1], _604DecodeData);
+                const scatterIndicesRightDecodeData = repeatSequence(1, 1, CONFIG.kvNumHeads);
+                const scatterIndicesRightDecodeTensor = await createWritableTensor('int32', [1, 4, 1], scatterIndicesRightDecodeData);
 
-                const _606DecodeData = generateIndices(1, 1, CONFIG.kvNumHeads);
-                const _606DecodeTensor = await createWritableTensor('int32', [1, 4, 2], _606DecodeData);
+                const scatterIndicesLeftDecodeData = generateIndices(1, 1, CONFIG.kvNumHeads);
+                const scatterIndicesLeftDecodeTensor = await createWritableTensor('int32', [1, 4, 2], scatterIndicesLeftDecodeData);
 
-                const _613DecodeData = preNerRightDataRange(1);
-                const _613DecodeTensor = await createWritableTensor('int32', [1], _613DecodeData);
+                const gqaPositionRangeDecodeData = preNerRightDataRange(1);
+                const gqaPositionRangeDecodeTensor = await createWritableTensor('int32', [1], gqaPositionRangeDecodeData);
 
-                const _617DecodeData = valueIntOneConstant(1);
-                const _617DecodeTensor = await createWritableTensor('int32', [1, 1, 1, 1], _617DecodeData);
+                const gqaMaskOnesDecodeData = valueIntOneConstant(1);
+                const gqaMaskOnesDecodeTensor = await createWritableTensor('int32', [1, 1, 1, 1], gqaMaskOnesDecodeData);
                 
                 // Reusable input tensors for decode
                 const decodeInputIdsTensor = await createWritableTensor('int64', [1, 1], new BigInt64Array([0n]));
@@ -663,11 +663,11 @@
                         attention_mask_593: decodeAttentionMaskTensor,
                         position_ids_622: decodePositionIdsTensor,
                         ...kvInput,  // Current input KV cache
-                        webnn_GQA_condition_constant_for_where_1: _601DecodeTensor,
-                        webnn_GQA_right_constant_of_scatter_indices: _604DecodeTensor,
-                        webnn_GQA_left_constant_of_scatter_indices: _606DecodeTensor,
-                        webnn_GQA_pre_neq_right_data_range: _613DecodeTensor,
-                        value_int_one_constant: _617DecodeTensor,
+                        webnn_GQA_condition_constant_for_where_1: gqaConditionDecodeTensor,
+                        webnn_GQA_right_constant_of_scatter_indices: scatterIndicesRightDecodeTensor,
+                        webnn_GQA_left_constant_of_scatter_indices: scatterIndicesLeftDecodeTensor,
+                        webnn_GQA_pre_neq_right_data_range: gqaPositionRangeDecodeTensor,
+                        value_int_one_constant: gqaMaskOnesDecodeTensor,
                     };
                     const decodeOutputs = { 
                         logits_44: decodeLogitsTensor, 
